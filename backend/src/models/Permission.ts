@@ -1,9 +1,9 @@
-import { Schema, model, Document, ObjectId } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
-export interface IPermission extends Document {
-  _id: ObjectId;
-  projectId: ObjectId;
-  userId: ObjectId;
+export interface IPermission {
+  _id: Types.ObjectId;
+  projectId: Types.ObjectId;
+  userId: Types.ObjectId;
   role: 'owner' | 'editor' | 'viewer' | 'commenter';
   permissions: {
     read: boolean;
@@ -12,10 +12,12 @@ export interface IPermission extends Document {
     share: boolean;
     comment: boolean;
   };
-  grantedBy: ObjectId;
+  grantedBy: Types.ObjectId;
   grantedAt: Date;
   expiresAt?: Date;
 }
+
+export type PermissionDocument = Document & IPermission;
 
 const permissionSchema = new Schema<IPermission>({
   projectId: {

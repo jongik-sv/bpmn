@@ -1,25 +1,32 @@
-import { Schema, model, Document, ObjectId } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
-export interface IComment extends Document {
-  _id: ObjectId;
-  documentId: ObjectId;
+export interface IComment {
+  _id: Types.ObjectId;
+  documentId: Types.ObjectId;
   elementId?: string;
-  parentId?: ObjectId;
-  authorId: ObjectId;
+  parentId?: Types.ObjectId;
+  authorId: Types.ObjectId;
   content: string;
   position?: {
     x: number;
     y: number;
   };
   status: 'active' | 'resolved' | 'deleted';
-  mentions: ObjectId[];
+  mentions: Types.ObjectId[];
   reactions: Array<{
-    userId: ObjectId;
+    userId: Types.ObjectId;
     type: string;
   }>;
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface ICommentMethods {
+  addReaction(userId: Types.ObjectId, reactionType: string): void;
+  removeReaction(userId: Types.ObjectId): void;
+}
+
+export type CommentDocument = Document & IComment & ICommentMethods;
 
 const reactionSchema = new Schema({
   userId: {
@@ -97,7 +104,7 @@ commentSchema.virtual('replyCount', {
 });
 
 // Method to add reaction
-commentSchema.methods.addReaction = function(userId: ObjectId, reactionType: string): void {
+commentSchema.methods.addReaction = function(userId: Types.ObjectId, reactionType: string): void {
   // Remove existing reaction from this user
   this.reactions = this.reactions.filter(
     (reaction: any) => !reaction.userId.equals(userId)
@@ -111,7 +118,7 @@ commentSchema.methods.addReaction = function(userId: ObjectId, reactionType: str
 };
 
 // Method to remove reaction
-commentSchema.methods.removeReaction = function(userId: ObjectId): void {
+commentSchema.methods.removeReaction = function(userId: Types.ObjectId): void {
   this.reactions = this.reactions.filter(
     (reaction: any) => !reaction.userId.equals(userId)
   );

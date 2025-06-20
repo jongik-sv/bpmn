@@ -1,4 +1,4 @@
-import { ObjectId } from 'mongoose';
+import { Types, ObjectId } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { DocumentShare, IDocumentShare } from '../models/DocumentShare';
@@ -24,7 +24,7 @@ export interface ShareAccessData {
   password?: string;
   ipAddress: string;
   userAgent: string;
-  userId?: ObjectId;
+  userId?: Types.ObjectId;
 }
 
 export class DocumentShareService {
@@ -34,7 +34,7 @@ export class DocumentShareService {
     this.projectService = new ProjectService();
   }
 
-  async createShare(documentId: ObjectId, userId: ObjectId, shareData: CreateShareData): Promise<IDocumentShare> {
+  async createShare(documentId: Types.ObjectId, userId: Types.ObjectId, shareData: CreateShareData): Promise<IDocumentShare> {
     // Get document and check permissions
     const document = await BpmnDocument.findById(documentId);
     if (!document) {
@@ -68,7 +68,7 @@ export class DocumentShareService {
     return share;
   }
 
-  async getDocumentShares(documentId: ObjectId, userId: ObjectId): Promise<IDocumentShare[]> {
+  async getDocumentShares(documentId: Types.ObjectId, userId: Types.ObjectId): Promise<IDocumentShare[]> {
     // Get document and check permissions
     const document = await BpmnDocument.findById(documentId);
     if (!document) {
@@ -90,7 +90,7 @@ export class DocumentShareService {
     return shares;
   }
 
-  async updateShare(shareId: ObjectId, userId: ObjectId, updateData: Partial<CreateShareData>): Promise<IDocumentShare> {
+  async updateShare(shareId: Types.ObjectId, userId: Types.ObjectId, updateData: Partial<CreateShareData>): Promise<IDocumentShare> {
     const share = await DocumentShare.findById(shareId);
     if (!share) {
       throw new Error('Share not found');
@@ -125,7 +125,7 @@ export class DocumentShareService {
     return share;
   }
 
-  async deleteShare(shareId: ObjectId, userId: ObjectId): Promise<void> {
+  async deleteShare(shareId: Types.ObjectId, userId: Types.ObjectId): Promise<void> {
     const share = await DocumentShare.findById(shareId);
     if (!share) {
       throw new Error('Share not found');
@@ -161,7 +161,7 @@ export class DocumentShareService {
     }
 
     // Check if share is valid
-    if (!share.isValid()) {
+    if (!(share as any).isValid()) {
       throw new Error('Share link has expired or access limit exceeded');
     }
 
@@ -194,7 +194,7 @@ export class DocumentShareService {
     await accessLog.save();
 
     // Increment access count
-    await share.incrementAccess();
+    await (share as any).incrementAccess();
 
     // Generate access token
     const accessToken = this.generateAccessToken(share._id, accessData.userId);
@@ -210,7 +210,7 @@ export class DocumentShareService {
     };
   }
 
-  async getShareStats(documentId: ObjectId, userId: ObjectId): Promise<any> {
+  async getShareStats(documentId: Types.ObjectId, userId: Types.ObjectId): Promise<any> {
     // Check permissions
     const document = await BpmnDocument.findById(documentId);
     if (!document) {
@@ -277,8 +277,8 @@ export class DocumentShareService {
   }
 
   async verifyShareAccess(shareToken: string, accessToken: string): Promise<{
-    shareId: ObjectId;
-    userId?: ObjectId;
+    shareId: Types.ObjectId;
+    userId?: Types.ObjectId;
     accessLevel: string;
   }> {
     try {
@@ -294,7 +294,7 @@ export class DocumentShareService {
         isActive: true
       });
 
-      if (!share || !share.isValid()) {
+      if (!share || !(share as any).isValid()) {
         throw new Error('Share access expired');
       }
 
@@ -309,7 +309,7 @@ export class DocumentShareService {
     }
   }
 
-  async logShareAction(shareId: ObjectId, action: string, details?: any): Promise<void> {
+  async logShareAction(shareId: Types.ObjectId, action: string, details?: any): Promise<void> {
     try {
       const share = await DocumentShare.findById(shareId);
       if (!share) return;
@@ -319,7 +319,7 @@ export class DocumentShareService {
         .sort({ accessedAt: -1 });
 
       if (accessLog) {
-        accessLog.addAction(action, details);
+        (accessLog as any).addAction(action, details);
         await accessLog.save();
       }
     } catch (error) {
@@ -328,7 +328,7 @@ export class DocumentShareService {
     }
   }
 
-  private generateAccessToken(shareId: ObjectId, userId?: ObjectId): string {
+  private generateAccessToken(shareId: Types.ObjectId, userId?: Types.ObjectId): string {
     return jwt.sign(
       {
         shareId: shareId.toString(),

@@ -1,4 +1,4 @@
-import { ObjectId } from 'mongoose';
+import { Types, ObjectId } from 'mongoose';
 import { User } from '../models/User';
 import { Comment } from '../models/Comment';
 import { ActivityLog } from '../models/ActivityLog';
@@ -115,18 +115,18 @@ export class CollaborationManager {
   // Comment management
   async addComment(
     documentId: string,
-    projectId: ObjectId,
-    authorId: ObjectId,
+    projectId: Types.ObjectId,
+    authorId: Types.ObjectId,
     commentData: {
       content: string;
       elementId?: string;
       position?: { x: number; y: number };
-      mentions?: ObjectId[];
+      mentions?: Types.ObjectId[];
     }
   ): Promise<CollaborativeComment> {
     // Save to database
     const comment = new Comment({
-      documentId: new ObjectId(documentId),
+      documentId: new Types.ObjectId(documentId),
       authorId,
       content: commentData.content,
       elementId: commentData.elementId,
@@ -163,7 +163,7 @@ export class CollaborationManager {
     // Log activity
     await this.logActivity(
       projectId,
-      new ObjectId(documentId),
+      new Types.ObjectId(documentId) as Types.ObjectId,
       authorId,
       'comment_created',
       {
@@ -178,7 +178,7 @@ export class CollaborationManager {
 
   async updateComment(
     commentId: string,
-    userId: ObjectId,
+    userId: Types.ObjectId,
     updates: { content?: string; status?: 'active' | 'resolved' }
   ): Promise<CollaborativeComment | null> {
     const comment = await Comment.findById(commentId).populate('authorId', 'username displayName avatar');
@@ -224,7 +224,7 @@ export class CollaborationManager {
 
     // Load from database
     const comments = await Comment.find({
-      documentId: new ObjectId(documentId),
+      documentId: new Types.ObjectId(documentId),
       status: { $ne: 'deleted' }
     })
     .populate('authorId', 'username displayName avatar')
@@ -254,9 +254,9 @@ export class CollaborationManager {
 
   // Activity management
   async logActivity(
-    projectId: ObjectId,
-    documentId: ObjectId,
-    userId: ObjectId,
+    projectId: Types.ObjectId,
+    documentId: Types.ObjectId,
+    userId: Types.ObjectId,
     action: string,
     details: any
   ): Promise<void> {
@@ -312,7 +312,7 @@ export class CollaborationManager {
 
     // Load from database
     const activities = await ActivityLog.find({
-      documentId: new ObjectId(documentId)
+      documentId: new Types.ObjectId(documentId)
     })
     .populate('userId', 'username displayName')
     .sort({ timestamp: -1 })

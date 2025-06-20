@@ -1,10 +1,10 @@
-import { Schema, model, Document, ObjectId } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
-export interface IShareAccess extends Document {
-  _id: ObjectId;
-  shareId: ObjectId;
-  documentId: ObjectId;
-  userId?: ObjectId;
+export interface IShareAccess {
+  _id: Types.ObjectId;
+  shareId: Types.ObjectId;
+  documentId: Types.ObjectId;
+  userId?: Types.ObjectId;
   ipAddress: string;
   userAgent: string;
   accessedAt: Date;
@@ -15,6 +15,12 @@ export interface IShareAccess extends Document {
     details?: any;
   }>;
 }
+
+export interface IShareAccessMethods {
+  addAction(type: string, details?: any): void;
+}
+
+export type ShareAccessDocument = Document & IShareAccess & IShareAccessMethods;
 
 const actionSchema = new Schema({
   type: {

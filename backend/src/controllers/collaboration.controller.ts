@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { collaborationManager } from '../websocket/collaboration';
 import { logger } from '../utils/logger';
-import { ObjectId } from 'mongoose';
+import { Types } from 'mongoose';
 
 export class CollaborationController {
   
@@ -46,13 +46,13 @@ export class CollaborationController {
 
       const comment = await collaborationManager.addComment(
         documentId,
-        document.projectId,
-        userId,
+        new Types.ObjectId(document.projectId),
+        new Types.ObjectId(userId),
         {
           content,
           elementId,
           position,
-          mentions: mentions?.map((id: string) => new ObjectId(id))
+          mentions: mentions?.map((id: string) => new Types.ObjectId(id))
         }
       );
 
@@ -74,7 +74,7 @@ export class CollaborationController {
       const userId = req.user!._id;
       const updates = req.body;
 
-      const comment = await collaborationManager.updateComment(commentId, userId, updates);
+      const comment = await collaborationManager.updateComment(commentId, new Types.ObjectId(userId), updates);
       
       if (!comment) {
         res.status(404).json({ error: 'Comment not found' });

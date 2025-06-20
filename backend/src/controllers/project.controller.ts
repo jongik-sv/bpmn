@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { ProjectService } from '../services/project.service';
 import { logger } from '../utils/logger';
-import { ObjectId } from 'mongoose';
+import { Types } from 'mongoose';
 
 export class ProjectController {
   private projectService: ProjectService;
@@ -49,12 +49,12 @@ export class ProjectController {
       const { id } = req.params;
       const userId = req.user!._id;
 
-      if (!ObjectId.isValid(id)) {
+      if (!Types.ObjectId.isValid(id)) {
         res.status(400).json({ error: 'Invalid project ID' });
         return;
       }
 
-      const project = await this.projectService.getProjectById(new ObjectId(id), userId);
+      const project = await this.projectService.getProjectById(new Types.ObjectId(id), userId);
 
       if (!project) {
         res.status(404).json({ error: 'Project not found' });
@@ -80,13 +80,13 @@ export class ProjectController {
       const userId = req.user!._id;
       const updateData = req.body;
 
-      if (!ObjectId.isValid(id)) {
+      if (!Types.ObjectId.isValid(id)) {
         res.status(400).json({ error: 'Invalid project ID' });
         return;
       }
 
       const project = await this.projectService.updateProject(
-        new ObjectId(id),
+        new Types.ObjectId(id),
         userId,
         updateData
       );
@@ -120,12 +120,12 @@ export class ProjectController {
       const { id } = req.params;
       const userId = req.user!._id;
 
-      if (!ObjectId.isValid(id)) {
+      if (!Types.ObjectId.isValid(id)) {
         res.status(400).json({ error: 'Invalid project ID' });
         return;
       }
 
-      await this.projectService.deleteProject(new ObjectId(id), userId);
+      await this.projectService.deleteProject(new Types.ObjectId(id), userId);
 
       logger.info(`Project deleted: ${id} by ${req.user!.email}`);
 
@@ -153,13 +153,13 @@ export class ProjectController {
       const { id } = req.params;
       const userId = req.user!._id;
 
-      if (!ObjectId.isValid(id)) {
+      if (!Types.ObjectId.isValid(id)) {
         res.status(400).json({ error: 'Invalid project ID' });
         return;
       }
 
       const members = await this.projectService.getProjectMembers(
-        new ObjectId(id),
+        new Types.ObjectId(id),
         userId
       );
 
@@ -182,13 +182,13 @@ export class ProjectController {
       const userId = req.user!._id;
       const { emails, role = 'viewer', message } = req.body;
 
-      if (!ObjectId.isValid(id)) {
+      if (!Types.ObjectId.isValid(id)) {
         res.status(400).json({ error: 'Invalid project ID' });
         return;
       }
 
       const results = await this.projectService.shareProject(
-        new ObjectId(id),
+        new Types.ObjectId(id),
         userId,
         emails,
         role,
@@ -216,15 +216,15 @@ export class ProjectController {
       const userId = req.user!._id;
       const { role } = req.body;
 
-      if (!ObjectId.isValid(id) || !ObjectId.isValid(memberId)) {
+      if (!Types.ObjectId.isValid(id) || !Types.ObjectId.isValid(memberId)) {
         res.status(400).json({ error: 'Invalid ID' });
         return;
       }
 
       await this.projectService.updateMemberRole(
-        new ObjectId(id),
+        new Types.ObjectId(id),
         userId,
-        new ObjectId(memberId),
+        new Types.ObjectId(memberId),
         role
       );
 
@@ -258,15 +258,15 @@ export class ProjectController {
       const { id, userId: memberId } = req.params;
       const userId = req.user!._id;
 
-      if (!ObjectId.isValid(id) || !ObjectId.isValid(memberId)) {
+      if (!Types.ObjectId.isValid(id) || !Types.ObjectId.isValid(memberId)) {
         res.status(400).json({ error: 'Invalid ID' });
         return;
       }
 
       await this.projectService.removeMember(
-        new ObjectId(id),
+        new Types.ObjectId(id),
         userId,
-        new ObjectId(memberId)
+        new Types.ObjectId(memberId)
       );
 
       logger.info(`Member removed from project ${id} by ${req.user!.email}`);

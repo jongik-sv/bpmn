@@ -1,11 +1,11 @@
-import { Schema, model, Document, ObjectId } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
 
-export interface IDocumentShare extends Document {
-  _id: ObjectId;
-  documentId: ObjectId;
+export interface IDocumentShare {
+  _id: Types.ObjectId;
+  documentId: Types.ObjectId;
   shareToken: string;
-  createdBy: ObjectId;
+  createdBy: Types.ObjectId;
   shareType: 'link' | 'email';
   accessLevel: 'editor' | 'viewer';
   settings: {
@@ -20,7 +20,15 @@ export interface IDocumentShare extends Document {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+  shareUrl: string; // Virtual property
 }
+
+export interface IDocumentShareMethods {
+  isValid(): boolean;
+  incrementAccess(): Promise<void>;
+}
+
+export type DocumentShareDocument = Document & IDocumentShare & IDocumentShareMethods;
 
 const documentShareSchema = new Schema<IDocumentShare>({
   documentId: {

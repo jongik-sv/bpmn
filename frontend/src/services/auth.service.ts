@@ -99,6 +99,11 @@ export class AuthService {
     }
   }
 
+  // Get current user
+  async getCurrentUser(): Promise<User> {
+    return this.getProfile();
+  }
+
   // Check if user is authenticated
   isAuthenticated(): boolean {
     return !!apiClient['getAuthToken']();

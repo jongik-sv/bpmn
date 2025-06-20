@@ -7,11 +7,11 @@ import { DocumentService } from '../services/document.service';
 import { AuthService } from '../services/auth.service';
 import { BpmnDocument } from '../models/Document';
 import * as Y from 'yjs';
-import { ObjectId } from 'mongoose';
+import { Types, ObjectId } from 'mongoose';
 
 export interface ConnectionInfo {
   documentId: string;
-  userId?: ObjectId;
+  userId?: Types.ObjectId;
   user?: any;
   shareToken?: string;
   accessLevel: 'owner' | 'editor' | 'viewer';
@@ -134,7 +134,7 @@ export class YjsWebSocketServer {
 
     // Check if user has access to the document
     try {
-      await this.documentService.getDocumentById(new ObjectId(documentId), user._id);
+      await this.documentService.getDocumentById(new Types.ObjectId(documentId), user._id);
     } catch (error) {
       throw new Error('Access denied to document');
     }
@@ -188,8 +188,9 @@ export class YjsWebSocketServer {
         
         // Set default BPMN content if document exists
         if (document && document.bpmnXml) {
-          // Parse and set BPMN XML - simplified for now
-          yBpmn.insert(0, [document.bpmnXml]);
+          // Store BPMN XML in a map for now since XML fragments expect XML elements
+          const yBpmnData = ydoc.getMap('bpmnData');
+          yBpmnData.set('xml', document.bpmnXml);
         }
       }
 
@@ -201,32 +202,32 @@ export class YjsWebSocketServer {
     }
   }
 
-  private async saveDocument(documentId: string, ydoc: Y.Doc, userId?: ObjectId): Promise<void> {
+  private async saveDocument(documentId: string, ydoc: Y.Doc, userId?: Types.ObjectId): Promise<void> {
     try {
       if (!userId) {
         logger.warn('Cannot save document: no user ID provided');
         return;
       }
 
-      const yjsState = Y.encodeStateAsUpdate(ydoc);
+      const yjsState = Buffer.from(Y.encodeStateAsUpdate(ydoc));
       
       // Extract BPMN XML from Yjs document
-      const yBpmn = ydoc.getXmlFragment('bpmn');
+      const yBpmnData = ydoc.getMap('bpmnData');
       let bpmnXml = '';
       
-      if (yBpmn.length > 0) {
-        // Simplified BPMN extraction - in real implementation, 
-        // you'd need proper BPMN XML generation from Yjs structure
-        bpmnXml = yBpmn.toString();
+      if (yBpmnData.has('xml')) {
+        bpmnXml = yBpmnData.get('xml') as string;
       }
 
       // Save to database
-      await this.documentService.saveDocumentContent(
-        new ObjectId(documentId),
-        userId,
-        bpmnXml,
-        yjsState
-      );
+      if (userId) {
+        await this.documentService.saveDocumentContent(
+          new Types.ObjectId(documentId),
+          userId,
+          bpmnXml,
+          yjsState
+        );
+      }
 
       logger.debug(`Document saved: ${documentId}`);
     } catch (error) {

@@ -3,8 +3,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const config = {
-  port: process.env.PORT || 3001,
-  wsPort: process.env.WS_PORT || 1234,
+  port: parseInt(process.env.PORT || '3001'),
+  wsPort: parseInt(process.env.WS_PORT || '1234'),
   nodeEnv: process.env.NODE_ENV || 'development',
 
   mongodb: {

@@ -1,8 +1,8 @@
-import { Schema, model, Document, ObjectId } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-export interface IUser extends Document {
-  _id: ObjectId;
+export interface IUser {
+  _id: Types.ObjectId;
   email: string;
   username: string;
   displayName: string;
@@ -26,7 +26,9 @@ export interface IUserMethods {
   toJSON(): any;
 }
 
-const userSchema = new Schema<IUser, {}, IUserMethods>({
+export type UserDocument = Document<unknown, {}, IUser> & IUser & IUserMethods;
+
+const userSchema = new Schema<IUser>({
   email: {
     type: String,
     required: true,
@@ -109,8 +111,8 @@ userSchema.methods.comparePassword = async function(password: string): Promise<b
 
 userSchema.methods.toJSON = function() {
   const user = this.toObject();
-  delete user.passwordHash;
-  delete user.__v;
+  delete (user as any).passwordHash;
+  delete (user as any).__v;
   return user;
 };
 
@@ -125,8 +127,8 @@ userSchema.pre('save', async function(next) {
     this.passwordHash = await bcrypt.hash(this.passwordHash, salt);
     next();
   } catch (error) {
-    next(error);
+    next(error as Error);
   }
 });
 
-export const User = model<IUser, {}, IUserMethods>('User', userSchema);
+export const User = model<IUser>('User', userSchema);

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { DocumentService } from '../services/document.service';
 import { logger } from '../utils/logger';
-import { ObjectId } from 'mongoose';
+import { Types } from 'mongoose';
 
 export class DocumentController {
   private documentService: DocumentService;
@@ -16,13 +16,13 @@ export class DocumentController {
       const userId = req.user!._id;
       const documentData = req.body;
 
-      if (!ObjectId.isValid(projectId)) {
+      if (!Types.ObjectId.isValid(projectId)) {
         res.status(400).json({ error: 'Invalid project ID' });
         return;
       }
 
       const document = await this.documentService.createDocument(
-        new ObjectId(projectId),
+        new Types.ObjectId(projectId),
         userId,
         documentData
       );
@@ -56,13 +56,13 @@ export class DocumentController {
       const { projectId } = req.params;
       const userId = req.user!._id;
 
-      if (!ObjectId.isValid(projectId)) {
+      if (!Types.ObjectId.isValid(projectId)) {
         res.status(400).json({ error: 'Invalid project ID' });
         return;
       }
 
       const documents = await this.documentService.getProjectDocuments(
-        new ObjectId(projectId),
+        new Types.ObjectId(projectId),
         userId
       );
 
@@ -84,13 +84,13 @@ export class DocumentController {
       const { id } = req.params;
       const userId = req.user!._id;
 
-      if (!ObjectId.isValid(id)) {
+      if (!Types.ObjectId.isValid(id)) {
         res.status(400).json({ error: 'Invalid document ID' });
         return;
       }
 
       const document = await this.documentService.getDocumentById(
-        new ObjectId(id),
+        new Types.ObjectId(id),
         userId
       );
 
@@ -119,13 +119,13 @@ export class DocumentController {
       const userId = req.user!._id;
       const updateData = req.body;
 
-      if (!ObjectId.isValid(id)) {
+      if (!Types.ObjectId.isValid(id)) {
         res.status(400).json({ error: 'Invalid document ID' });
         return;
       }
 
       const document = await this.documentService.updateDocument(
-        new ObjectId(id),
+        new Types.ObjectId(id),
         userId,
         updateData
       );
@@ -163,12 +163,12 @@ export class DocumentController {
       const { id } = req.params;
       const userId = req.user!._id;
 
-      if (!ObjectId.isValid(id)) {
+      if (!Types.ObjectId.isValid(id)) {
         res.status(400).json({ error: 'Invalid document ID' });
         return;
       }
 
-      await this.documentService.deleteDocument(new ObjectId(id), userId);
+      await this.documentService.deleteDocument(new Types.ObjectId(id), userId);
 
       logger.info(`Document deleted: ${id} by ${req.user!.email}`);
 
@@ -197,7 +197,7 @@ export class DocumentController {
       const userId = req.user!._id;
       const { name } = req.body;
 
-      if (!ObjectId.isValid(id)) {
+      if (!Types.ObjectId.isValid(id)) {
         res.status(400).json({ error: 'Invalid document ID' });
         return;
       }
@@ -207,7 +207,7 @@ export class DocumentController {
         return;
       }
 
-      await this.documentService.createSnapshot(new ObjectId(id), userId, name);
+      await this.documentService.createSnapshot(new Types.ObjectId(id), userId, name);
 
       logger.info(`Snapshot created for document ${id} by ${req.user!.email}`);
 
@@ -239,13 +239,13 @@ export class DocumentController {
       const { id } = req.params;
       const userId = req.user!._id;
 
-      if (!ObjectId.isValid(id)) {
+      if (!Types.ObjectId.isValid(id)) {
         res.status(400).json({ error: 'Invalid document ID' });
         return;
       }
 
       const snapshots = await this.documentService.getDocumentSnapshots(
-        new ObjectId(id),
+        new Types.ObjectId(id),
         userId
       );
 
@@ -273,13 +273,13 @@ export class DocumentController {
       const { id, snapshotId } = req.params;
       const userId = req.user!._id;
 
-      if (!ObjectId.isValid(id)) {
+      if (!Types.ObjectId.isValid(id)) {
         res.status(400).json({ error: 'Invalid document ID' });
         return;
       }
 
       await this.documentService.restoreSnapshot(
-        new ObjectId(id),
+        new Types.ObjectId(id),
         userId,
         snapshotId
       );
@@ -315,7 +315,7 @@ export class DocumentController {
       const userId = req.user!._id;
       const format = req.query.format as 'xml' | 'json' || 'xml';
 
-      if (!ObjectId.isValid(id)) {
+      if (!Types.ObjectId.isValid(id)) {
         res.status(400).json({ error: 'Invalid document ID' });
         return;
       }
@@ -326,7 +326,7 @@ export class DocumentController {
       }
 
       const content = await this.documentService.exportDocument(
-        new ObjectId(id),
+        new Types.ObjectId(id),
         userId,
         format
       );

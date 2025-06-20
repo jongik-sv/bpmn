@@ -1,4 +1,4 @@
-import { ObjectId } from 'mongoose';
+import { Types, ObjectId } from 'mongoose';
 import { BpmnDocument, IBpmnDocument } from '../models/Document';
 import { ProjectService } from './project.service';
 import { ActivityLog } from '../models/ActivityLog';
@@ -21,7 +21,7 @@ export class DocumentService {
     this.projectService = new ProjectService();
   }
 
-  async createDocument(projectId: ObjectId, userId: ObjectId, documentData: CreateDocumentData): Promise<IBpmnDocument> {
+  async createDocument(projectId: Types.ObjectId, userId: Types.ObjectId, documentData: CreateDocumentData): Promise<IBpmnDocument> {
     // Check if user has write permission to project
     const hasPermission = await this.projectService.checkPermission(projectId, userId, 'write');
     if (!hasPermission) {
@@ -58,8 +58,8 @@ export class DocumentService {
     const yjsState = Y.encodeStateAsUpdate(yDoc);
     const yjsStateVector = Y.encodeStateVector(yDoc);
 
-    document.yjsState = yjsState;
-    document.yjsStateVector = yjsStateVector;
+    document.yjsState = Buffer.from(yjsState);
+    document.yjsStateVector = Buffer.from(yjsStateVector);
     await document.save();
 
     // Log activity
@@ -70,7 +70,7 @@ export class DocumentService {
     return document;
   }
 
-  async getProjectDocuments(projectId: ObjectId, userId: ObjectId): Promise<IBpmnDocument[]> {
+  async getProjectDocuments(projectId: Types.ObjectId, userId: Types.ObjectId): Promise<IBpmnDocument[]> {
     // Check if user has read permission to project
     const hasPermission = await this.projectService.checkPermission(projectId, userId, 'read');
     if (!hasPermission) {
@@ -82,10 +82,19 @@ export class DocumentService {
       .sort({ updatedAt: -1 })
       .lean();
 
-    return documents;
+    // Convert MongoDB Binary to Buffer for type compatibility
+    return documents.map(doc => ({
+      ...doc,
+      yjsState: doc.yjsState ? Buffer.from(doc.yjsState.buffer) : undefined,
+      yjsStateVector: doc.yjsStateVector ? Buffer.from(doc.yjsStateVector.buffer) : undefined,
+      snapshots: doc.snapshots?.map(snapshot => ({
+        ...snapshot,
+        yjsState: snapshot.yjsState ? Buffer.from(snapshot.yjsState.buffer) : undefined
+      })) || []
+    })) as IBpmnDocument[];
   }
 
-  async getDocumentById(documentId: ObjectId, userId: ObjectId): Promise<IBpmnDocument> {
+  async getDocumentById(documentId: Types.ObjectId, userId: Types.ObjectId): Promise<IBpmnDocument> {
     const document = await BpmnDocument.findById(documentId)
       .populate('projectId', 'name ownerId')
       .populate('metadata.lastModifiedBy', 'username displayName avatar');
@@ -103,7 +112,7 @@ export class DocumentService {
     return document;
   }
 
-  async updateDocument(documentId: ObjectId, userId: ObjectId, updateData: UpdateDocumentData): Promise<IBpmnDocument> {
+  async updateDocument(documentId: Types.ObjectId, userId: Types.ObjectId, updateData: UpdateDocumentData): Promise<IBpmnDocument> {
     const document = await BpmnDocument.findById(documentId);
     
     if (!document) {
@@ -144,7 +153,7 @@ export class DocumentService {
     return document;
   }
 
-  async deleteDocument(documentId: ObjectId, userId: ObjectId): Promise<void> {
+  async deleteDocument(documentId: Types.ObjectId, userId: Types.ObjectId): Promise<void> {
     const document = await BpmnDocument.findById(documentId);
     
     if (!document) {
@@ -165,7 +174,7 @@ export class DocumentService {
     });
   }
 
-  async saveDocumentContent(documentId: ObjectId, userId: ObjectId, bpmnXml: string, yjsState?: Buffer): Promise<void> {
+  async saveDocumentContent(documentId: Types.ObjectId, userId: Types.ObjectId, bpmnXml: string, yjsState?: Uint8Array): Promise<void> {
     const document = await BpmnDocument.findById(documentId);
     
     if (!document) {
@@ -183,14 +192,16 @@ export class DocumentService {
     document.metadata.lastModifiedBy = userId;
     
     if (yjsState) {
-      document.yjsState = yjsState;
-      document.yjsStateVector = Y.encodeStateVector(Y.decodeUpdate(yjsState));
+      document.yjsState = Buffer.from(yjsState);
+      const yDoc = new Y.Doc();
+      Y.applyUpdate(yDoc, yjsState);
+      document.yjsStateVector = Buffer.from(Y.encodeStateVector(yDoc));
     }
 
     await document.save();
   }
 
-  async createSnapshot(documentId: ObjectId, userId: ObjectId, name: string): Promise<void> {
+  async createSnapshot(documentId: Types.ObjectId, userId: Types.ObjectId, name: string): Promise<void> {
     const document = await BpmnDocument.findById(documentId);
     
     if (!document) {
@@ -205,7 +216,7 @@ export class DocumentService {
 
     // Create snapshot
     if (document.yjsState) {
-      document.addSnapshot(name, document.yjsState, userId);
+      (document as any).addSnapshot(name, document.yjsState, userId);
       await document.save();
 
       // Log activity
@@ -217,7 +228,7 @@ export class DocumentService {
     }
   }
 
-  async restoreSnapshot(documentId: ObjectId, userId: ObjectId, snapshotId: string): Promise<void> {
+  async restoreSnapshot(documentId: Types.ObjectId, userId: Types.ObjectId, snapshotId: string): Promise<void> {
     const document = await BpmnDocument.findById(documentId);
     
     if (!document) {
@@ -237,15 +248,17 @@ export class DocumentService {
     }
 
     // Restore from snapshot
-    document.yjsState = snapshot.yjsState;
-    document.yjsStateVector = Y.encodeStateVector(Y.decodeUpdate(snapshot.yjsState));
+    document.yjsState = Buffer.from(snapshot.yjsState);
+    const yDocSnapshot = new Y.Doc();
+    Y.applyUpdate(yDocSnapshot, snapshot.yjsState);
+    document.yjsStateVector = Buffer.from(Y.encodeStateVector(yDocSnapshot));
     document.metadata.lastModifiedBy = userId;
     document.metadata.version += 1;
 
     // Extract BPMN XML from Yjs state
-    const yDoc = new Y.Doc();
-    Y.applyUpdate(yDoc, snapshot.yjsState);
-    const yBpmn = yDoc.getXmlFragment('bpmn');
+    const yDocExtract = new Y.Doc();
+    Y.applyUpdate(yDocExtract, snapshot.yjsState);
+    const yBpmn = yDocExtract.getXmlFragment('bpmn');
     if (yBpmn.toString()) {
       document.bpmnXml = yBpmn.toString();
     }
@@ -258,7 +271,7 @@ export class DocumentService {
     });
   }
 
-  async getDocumentSnapshots(documentId: ObjectId, userId: ObjectId): Promise<any[]> {
+  async getDocumentSnapshots(documentId: Types.ObjectId, userId: Types.ObjectId): Promise<any[]> {
     const document = await BpmnDocument.findById(documentId);
     
     if (!document) {
@@ -279,7 +292,7 @@ export class DocumentService {
     }));
   }
 
-  async exportDocument(documentId: ObjectId, userId: ObjectId, format: 'xml' | 'json' = 'xml'): Promise<string> {
+  async exportDocument(documentId: Types.ObjectId, userId: Types.ObjectId, format: 'xml' | 'json' = 'xml'): Promise<string> {
     const document = await BpmnDocument.findById(documentId);
     
     if (!document) {
@@ -309,7 +322,7 @@ export class DocumentService {
     }
   }
 
-  private async logActivity(projectId: ObjectId, documentId: ObjectId, userId: ObjectId, action: string, details: any): Promise<void> {
+  private async logActivity(projectId: Types.ObjectId, documentId: Types.ObjectId, userId: Types.ObjectId, action: string, details: any): Promise<void> {
     try {
       const activityLog = new ActivityLog({
         projectId,

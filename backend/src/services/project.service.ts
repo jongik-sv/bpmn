@@ -1,4 +1,4 @@
-import { ObjectId } from 'mongoose';
+import { Types, ObjectId } from 'mongoose';
 import { Project, IProject } from '../models/Project';
 import { Permission } from '../models/Permission';
 import { BpmnDocument } from '../models/Document';
@@ -25,7 +25,7 @@ export interface UpdateProjectData {
 }
 
 export class ProjectService {
-  async createProject(ownerId: ObjectId, projectData: CreateProjectData): Promise<IProject> {
+  async createProject(ownerId: Types.ObjectId, projectData: CreateProjectData): Promise<IProject> {
     // Create project
     const project = new Project({
       ...projectData,
@@ -59,7 +59,7 @@ export class ProjectService {
     return project;
   }
 
-  async getUserProjects(userId: ObjectId, page: number = 1, limit: number = 20): Promise<{
+  async getUserProjects(userId: Types.ObjectId, page: number = 1, limit: number = 20): Promise<{
     projects: IProject[];
     total: number;
     page: number;
@@ -92,7 +92,7 @@ export class ProjectService {
     };
   }
 
-  async getProjectById(projectId: ObjectId, userId: ObjectId): Promise<IProject | null> {
+  async getProjectById(projectId: Types.ObjectId, userId: Types.ObjectId): Promise<IProject | null> {
     // Check if user has permission
     const hasPermission = await this.checkPermission(projectId, userId, 'read');
     if (!hasPermission) {
@@ -113,7 +113,7 @@ export class ProjectService {
     return project;
   }
 
-  async updateProject(projectId: ObjectId, userId: ObjectId, updateData: UpdateProjectData): Promise<IProject> {
+  async updateProject(projectId: Types.ObjectId, userId: Types.ObjectId, updateData: UpdateProjectData): Promise<IProject> {
     // Check if user has permission
     const hasPermission = await this.checkPermission(projectId, userId, 'write');
     if (!hasPermission) {
@@ -138,7 +138,7 @@ export class ProjectService {
     return project;
   }
 
-  async deleteProject(projectId: ObjectId, userId: ObjectId): Promise<void> {
+  async deleteProject(projectId: Types.ObjectId, userId: Types.ObjectId): Promise<void> {
     // Check if user is owner
     const project = await Project.findById(projectId);
     if (!project) {
@@ -164,7 +164,7 @@ export class ProjectService {
     });
   }
 
-  async getProjectMembers(projectId: ObjectId, userId: ObjectId): Promise<any[]> {
+  async getProjectMembers(projectId: Types.ObjectId, userId: Types.ObjectId): Promise<any[]> {
     // Check if user has permission
     const hasPermission = await this.checkPermission(projectId, userId, 'read');
     if (!hasPermission) {
@@ -180,7 +180,7 @@ export class ProjectService {
     return members;
   }
 
-  async shareProject(projectId: ObjectId, ownerId: ObjectId, emails: string[], role: string, message?: string): Promise<any[]> {
+  async shareProject(projectId: Types.ObjectId, ownerId: Types.ObjectId, emails: string[], role: string, message?: string): Promise<any[]> {
     // Check if user has share permission
     const hasSharePermission = await this.checkPermission(projectId, ownerId, 'share');
     if (!hasSharePermission) {
@@ -230,14 +230,14 @@ export class ProjectService {
         results.push({ email, status: 'invited', userId: user._id });
 
       } catch (error) {
-        results.push({ email, status: 'error', error: error.message });
+        results.push({ email, status: 'error', error: (error as Error).message });
       }
     }
 
     return results;
   }
 
-  async updateMemberRole(projectId: ObjectId, ownerId: ObjectId, memberId: ObjectId, newRole: string): Promise<void> {
+  async updateMemberRole(projectId: Types.ObjectId, ownerId: Types.ObjectId, memberId: Types.ObjectId, newRole: string): Promise<void> {
     // Check if user has share permission
     const hasSharePermission = await this.checkPermission(projectId, ownerId, 'share');
     if (!hasSharePermission) {
@@ -268,7 +268,7 @@ export class ProjectService {
     });
   }
 
-  async removeMember(projectId: ObjectId, ownerId: ObjectId, memberId: ObjectId): Promise<void> {
+  async removeMember(projectId: Types.ObjectId, ownerId: Types.ObjectId, memberId: Types.ObjectId): Promise<void> {
     // Check if user has share permission
     const hasSharePermission = await this.checkPermission(projectId, ownerId, 'share');
     if (!hasSharePermission) {
@@ -297,7 +297,7 @@ export class ProjectService {
     });
   }
 
-  async checkPermission(projectId: ObjectId, userId: ObjectId, action: string): Promise<boolean> {
+  async checkPermission(projectId: Types.ObjectId, userId: Types.ObjectId, action: string): Promise<boolean> {
     const permission = await Permission.findOne({ projectId, userId });
     
     if (!permission) {
@@ -347,7 +347,7 @@ export class ProjectService {
     return rolePermissions[role as keyof typeof rolePermissions] || rolePermissions.viewer;
   }
 
-  private async logActivity(projectId: ObjectId, userId: ObjectId, action: string, details: any): Promise<void> {
+  private async logActivity(projectId: Types.ObjectId, userId: Types.ObjectId, action: string, details: any): Promise<void> {
     try {
       const activityLog = new ActivityLog({
         projectId,

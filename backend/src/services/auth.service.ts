@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
-import { User, IUser } from '../models/User';
+import { User, IUser, UserDocument } from '../models/User';
 import { config } from '../config/environment';
-import { ObjectId } from 'mongoose';
+import { Types } from 'mongoose';
 
 export interface LoginResult {
   user: IUser;
@@ -16,12 +16,11 @@ export interface RegisterData {
 }
 
 export class AuthService {
-  generateToken(userId: ObjectId): string {
-    return jwt.sign(
-      { userId: userId.toString() },
-      config.jwt.secret,
-      { expiresIn: config.jwt.expiresIn }
-    );
+  generateToken(userId: Types.ObjectId): string {
+    const payload = { userId: userId.toString() };
+    const secret = config.jwt.secret as string;
+    
+    return jwt.sign(payload, secret, { expiresIn: '24h' });
   }
 
   async verifyToken(token: string): Promise<IUser | null> {
@@ -74,7 +73,7 @@ export class AuthService {
 
   async login(email: string, password: string): Promise<LoginResult> {
     // Find user by email
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: email.toLowerCase() }) as UserDocument | null;
     
     if (!user) {
       throw new Error('Invalid email or password');
@@ -86,8 +85,8 @@ export class AuthService {
       throw new Error('Invalid email or password');
     }
 
-    // Update last login
-    user.lastLoginAt = new Date();
+    // Update last login  
+    (user as any).lastLoginAt = new Date();
     await user.save();
 
     // Generate token
@@ -99,7 +98,7 @@ export class AuthService {
     };
   }
 
-  async updateProfile(userId: ObjectId, updateData: Partial<IUser>): Promise<IUser> {
+  async updateProfile(userId: Types.ObjectId, updateData: Partial<IUser>): Promise<IUser> {
     const user = await User.findByIdAndUpdate(
       userId,
       { $set: updateData },
@@ -113,8 +112,8 @@ export class AuthService {
     return user;
   }
 
-  async changePassword(userId: ObjectId, currentPassword: string, newPassword: string): Promise<void> {
-    const user = await User.findById(userId);
+  async changePassword(userId: Types.ObjectId, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await User.findById(userId) as UserDocument | null;
     
     if (!user) {
       throw new Error('User not found');
@@ -127,12 +126,12 @@ export class AuthService {
     }
 
     // Update password
-    user.passwordHash = newPassword; // Will be hashed in pre-save hook
+    (user as any).passwordHash = newPassword; // Will be hashed in pre-save hook
     await user.save();
   }
 
-  async getUserById(userId: ObjectId): Promise<IUser | null> {
-    return User.findById(userId).select('-passwordHash');
+  async getUserById(userId: Types.ObjectId): Promise<IUser | null> {
+    return User.findById(userId).select('-passwordHash') as Promise<IUser | null>;
   }
 
   async searchUsers(query: string, limit: number = 10): Promise<IUser[]> {
@@ -146,6 +145,6 @@ export class AuthService {
       ]
     })
     .select('username displayName email avatar')
-    .limit(limit);
+    .limit(limit) as Promise<IUser[]>;
   }
 }

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { DocumentShareService } from '../services/document-share.service';
 import { logger } from '../utils/logger';
-import { ObjectId } from 'mongoose';
+import { Types } from 'mongoose';
 
 export class DocumentShareController {
   private shareService: DocumentShareService;
@@ -16,13 +16,13 @@ export class DocumentShareController {
       const userId = req.user!._id;
       const shareData = req.body;
 
-      if (!ObjectId.isValid(id)) {
+      if (!Types.ObjectId.isValid(id)) {
         res.status(400).json({ error: 'Invalid document ID' });
         return;
       }
 
       const share = await this.shareService.createShare(
-        new ObjectId(id),
+        new Types.ObjectId(id),
         userId,
         shareData
       );
@@ -63,19 +63,19 @@ export class DocumentShareController {
       const { id } = req.params;
       const userId = req.user!._id;
 
-      if (!ObjectId.isValid(id)) {
+      if (!Types.ObjectId.isValid(id)) {
         res.status(400).json({ error: 'Invalid document ID' });
         return;
       }
 
       const shares = await this.shareService.getDocumentShares(
-        new ObjectId(id),
+        new Types.ObjectId(id),
         userId
       );
 
       // Remove password from response
       const sanitizedShares = shares.map(share => ({
-        ...share.toObject(),
+        ...(share as any).toObject(),
         settings: {
           ...share.settings,
           password: share.settings.password ? '[PROTECTED]' : undefined
@@ -107,13 +107,13 @@ export class DocumentShareController {
       const userId = req.user!._id;
       const updateData = req.body;
 
-      if (!ObjectId.isValid(id) || !ObjectId.isValid(shareId)) {
+      if (!Types.ObjectId.isValid(id) || !Types.ObjectId.isValid(shareId)) {
         res.status(400).json({ error: 'Invalid ID' });
         return;
       }
 
       const share = await this.shareService.updateShare(
-        new ObjectId(shareId),
+        new Types.ObjectId(shareId),
         userId,
         updateData
       );
@@ -123,7 +123,7 @@ export class DocumentShareController {
       res.json({
         message: 'Share updated successfully',
         share: {
-          ...share.toObject(),
+          ...(share as any).toObject(),
           settings: {
             ...share.settings,
             password: share.settings.password ? '[PROTECTED]' : undefined
@@ -157,12 +157,12 @@ export class DocumentShareController {
       const { id, shareId } = req.params;
       const userId = req.user!._id;
 
-      if (!ObjectId.isValid(id) || !ObjectId.isValid(shareId)) {
+      if (!Types.ObjectId.isValid(id) || !Types.ObjectId.isValid(shareId)) {
         res.status(400).json({ error: 'Invalid ID' });
         return;
       }
 
-      await this.shareService.deleteShare(new ObjectId(shareId), userId);
+      await this.shareService.deleteShare(new Types.ObjectId(shareId), userId);
 
       logger.info(`Share deleted: ${shareId} by ${req.user!.email}`);
 
@@ -195,7 +195,7 @@ export class DocumentShareController {
 
       const result = await this.shareService.accessSharedDocument(shareToken, {
         password,
-        ipAddress,
+        ipAddress: ipAddress || 'unknown',
         userAgent,
         userId
       });
@@ -244,13 +244,13 @@ export class DocumentShareController {
       const { id } = req.params;
       const userId = req.user!._id;
 
-      if (!ObjectId.isValid(id)) {
+      if (!Types.ObjectId.isValid(id)) {
         res.status(400).json({ error: 'Invalid document ID' });
         return;
       }
 
       const stats = await this.shareService.getShareStats(
-        new ObjectId(id),
+        new Types.ObjectId(id),
         userId
       );
 

@@ -1,10 +1,10 @@
-import { Schema, model, Document, ObjectId } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
-export interface IProject extends Document {
-  _id: ObjectId;
+export interface IProject {
+  _id: Types.ObjectId;
   name: string;
   description?: string;
-  ownerId: ObjectId;
+  ownerId: Types.ObjectId;
   visibility: 'private' | 'public' | 'team';
   settings: {
     allowComments: boolean;
@@ -17,6 +17,8 @@ export interface IProject extends Document {
   updatedAt: Date;
   lastAccessedAt: Date;
 }
+
+export type ProjectDocument = Document & IProject;
 
 const projectSchema = new Schema<IProject>({
   name: {

@@ -1,10 +1,10 @@
-import { Schema, model, Document, ObjectId } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
-export interface IActivityLog extends Document {
-  _id: ObjectId;
-  projectId: ObjectId;
-  documentId?: ObjectId;
-  userId: ObjectId;
+export interface IActivityLog {
+  _id: Types.ObjectId;
+  projectId: Types.ObjectId;
+  documentId?: Types.ObjectId;
+  userId: Types.ObjectId;
   action: string;
   details: {
     elementId?: string;
@@ -17,6 +17,8 @@ export interface IActivityLog extends Document {
   userAgent: string;
   timestamp: Date;
 }
+
+export type ActivityLogDocument = Document & IActivityLog;
 
 const activityLogSchema = new Schema<IActivityLog>({
   projectId: {

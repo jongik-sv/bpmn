@@ -1,15 +1,15 @@
-import { Schema, model, Document as MongoDocument, ObjectId } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
-export interface IBpmnDocument extends MongoDocument {
-  _id: ObjectId;
-  projectId: ObjectId;
+export interface IBpmnDocument {
+  _id: Types.ObjectId;
+  projectId: Types.ObjectId;
   name: string;
   bpmnXml: string;
   yjsState: Buffer;
   yjsStateVector: Buffer;
   metadata: {
     elementCount: number;
-    lastModifiedBy: ObjectId;
+    lastModifiedBy: Types.ObjectId;
     version: number;
     fileSize: number;
   };
@@ -17,12 +17,19 @@ export interface IBpmnDocument extends MongoDocument {
     id: string;
     name: string;
     yjsState: Buffer;
-    createdBy: ObjectId;
+    createdBy: Types.ObjectId;
     createdAt: Date;
   }>;
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface IBpmnDocumentMethods {
+  addSnapshot(name: string, yjsState: Buffer, createdBy: Types.ObjectId): any;
+  countBpmnElements(): number;
+}
+
+export type BpmnDocumentDocument = Document & IBpmnDocument & IBpmnDocumentMethods;
 
 const snapshotSchema = new Schema({
   id: {
@@ -113,7 +120,7 @@ documentSchema.virtual('snapshotCount').get(function() {
 });
 
 // Method to add snapshot
-documentSchema.methods.addSnapshot = function(name: string, yjsState: Buffer, createdBy: ObjectId) {
+documentSchema.methods.addSnapshot = function(name: string, yjsState: Buffer, createdBy: Types.ObjectId) {
   const snapshot = {
     id: Date.now().toString(),
     name,
@@ -143,7 +150,7 @@ documentSchema.methods.countBpmnElements = function(): number {
 // Pre-save hook to update metadata
 documentSchema.pre('save', function(next) {
   if (this.isModified('bpmnXml')) {
-    this.metadata.elementCount = this.countBpmnElements();
+    this.metadata.elementCount = (this as any).countBpmnElements();
     this.metadata.fileSize = Buffer.byteLength(this.bpmnXml, 'utf8');
   }
   next();

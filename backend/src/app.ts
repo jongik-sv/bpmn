@@ -20,7 +20,7 @@ import collaborationRoutes from './routes/collaboration.routes';
 class App {
   public app: express.Application;
   private database: Database;
-  private wsServer: YjsWebSocketServer;
+  private wsServer!: YjsWebSocketServer;
 
   constructor() {
     this.app = express();
