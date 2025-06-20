@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { createServer } from 'http';
-import { setupWSConnection } from 'y-websocket/bin/utils';
+// @ts-ignore - Type definitions are in src/types/y-websocket.d.ts
+const { setupWSConnection } = require('y-websocket/bin/utils');
 import { config } from '../config/environment';
 import { logger } from '../utils/logger';
 import { DocumentService } from '../services/document.service';

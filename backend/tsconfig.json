@@ -15,10 +15,17 @@
     "sourceMap": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
+    "typeRoots": ["./node_modules/@types", "./src/types"],
     "types": ["node", "jest"]
   },
+  "ts-node": {
+    "esm": false,
+    "experimentalSpecifierResolution": "node",
+    "files": true
+  },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "src/types/**/*"
   ],
   "exclude": [
     "node_modules",
