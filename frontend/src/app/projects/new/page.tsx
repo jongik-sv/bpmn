@@ -30,6 +30,7 @@ export default function NewProjectPage() {
   const { user } = useAuthStore();
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
   
   const {
     register,
@@ -53,14 +54,30 @@ export default function NewProjectPage() {
   };
 
   const onSubmit = async (data: CreateProjectForm) => {
-    const projectData = {
-      ...data,
-      tags,
-    };
+    setIsCreating(true);
     
-    const project = await createProject(projectData);
-    if (project) {
-      router.push(`/editor/${project._id}`);
+    try {
+      const projectData = {
+        ...data,
+        tags,
+      };
+      
+      console.log('프로젝트 생성 시작:', projectData);
+      const project = await createProject(projectData);
+      console.log('프로젝트 생성 결과:', project);
+      
+      if (project) {
+        console.log('대시보드로 이동');
+        router.push('/dashboard');
+      } else {
+        console.log('프로젝트 생성 실패, 대시보드로 이동');
+        router.push('/dashboard');
+      }
+    } catch (error) {
+      console.error('프로젝트 생성 오류:', error);
+      router.push('/dashboard');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -175,9 +192,9 @@ export default function NewProjectPage() {
               <Button
                 type="submit"
                 variant="contained"
-                disabled={isSubmitting}
+                disabled={isCreating}
               >
-                {isSubmitting ? '만드는 중...' : '프로젝트 만들기'}
+                {isCreating ? '만드는 중...' : '프로젝트 만들기'}
               </Button>
             </Box>
           </Box>

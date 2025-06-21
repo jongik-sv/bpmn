@@ -36,8 +36,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ isLoading: true });
     try {
       const response = await projectService.getProjects({ page, limit: 12 });
+      console.log('프로젝트 목록 API 응답:', response);
       set({
-        projects: response.items,
+        projects: response.projects || response.items || [],
         pagination: {
           page: response.page,
           totalPages: response.totalPages,
@@ -55,7 +56,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const project = await projectService.createProject(data);
       const { projects } = get();
-      set({ projects: [project, ...projects] });
+      const currentProjects = Array.isArray(projects) ? projects : [];
+      set({ projects: [project, ...currentProjects] });
       toast.success('프로젝트가 생성되었습니다');
       return project;
     } catch (error: any) {
@@ -68,9 +70,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const updatedProject = await projectService.updateProject(id, data);
       const { projects, currentProject } = get();
+      const currentProjects = Array.isArray(projects) ? projects : [];
       
       set({
-        projects: projects.map(p => p._id === id ? updatedProject : p),
+        projects: currentProjects.map(p => p._id === id ? updatedProject : p),
         currentProject: currentProject?._id === id ? updatedProject : currentProject,
       });
       
@@ -86,9 +89,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       await projectService.deleteProject(id);
       const { projects, currentProject } = get();
+      const currentProjects = Array.isArray(projects) ? projects : [];
       
       set({
-        projects: projects.filter(p => p._id !== id),
+        projects: currentProjects.filter(p => p._id !== id),
         currentProject: currentProject?._id === id ? null : currentProject,
       });
       

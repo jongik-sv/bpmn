@@ -39,7 +39,6 @@ const documentShareSchema = new Schema<IDocumentShare>({
   shareToken: {
     type: String,
     required: true,
-    unique: true,
     default: () => uuidv4().replace(/-/g, '')
   },
   createdBy: {

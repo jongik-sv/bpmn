@@ -32,7 +32,6 @@ const userSchema = new Schema<IUser>({
   email: {
     type: String,
     required: true,
-    unique: true,
     lowercase: true,
     trim: true,
     match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email']
@@ -40,7 +39,6 @@ const userSchema = new Schema<IUser>({
   username: {
     type: String,
     required: true,
-    unique: true,
     trim: true,
     minlength: 3,
     maxlength: 30,

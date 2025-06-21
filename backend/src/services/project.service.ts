@@ -72,6 +72,9 @@ export class ProjectService {
       .select('projectId')
       .lean();
 
+    console.log(`User ${userId} has permissions for ${userPermissions.length} projects`);
+    console.log('Permission projectIds:', userPermissions.map(p => p.projectId));
+
     const projectIds = userPermissions.map(p => p.projectId);
 
     const [projects, total] = await Promise.all([
@@ -83,6 +86,8 @@ export class ProjectService {
         .lean(),
       Project.countDocuments({ _id: { $in: projectIds } })
     ]);
+
+    console.log(`Found ${projects.length} projects for user ${userId}`);
 
     return {
       projects,

@@ -35,7 +35,9 @@ export class ProjectController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
 
+      logger.info(`Getting projects for user: ${userId}, page: ${page}, limit: ${limit}`);
       const result = await this.projectService.getUserProjects(userId, page, limit);
+      logger.info(`Found ${result.projects.length} projects, total: ${result.total}`);
 
       res.json(result);
     } catch (error) {
