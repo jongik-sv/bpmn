@@ -117,7 +117,7 @@ class BpmnCollaborativeEditor {
     
     // 페이지 포커스 시 사용자 상태 재확인
     window.addEventListener('focus', async () => {
-      console.log('Window focused, checking auth status');
+      console.log('Window focused, checking auth status - currentUser:', this.currentUser?.email);
       const currentUser = await getCurrentUser();
       if (currentUser && !this.currentUser) {
         console.log('User logged in from another tab/window');
