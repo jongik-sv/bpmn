@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__yahoo-finance-mcp__*",
+      "mcp__alpha-ventage-mcp__*",
+      "mcp__supabase__*",
+      "mcp__naver-search-mcp__search_news",
+      "mcp__naver-search-mcp__search_web",
+      "mcp__exa__*",
+      "mcp__fetch-mcp__*",
+      "mcp__sequential-thinking__*",
+      "Bash"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "yahoo-finance-mcp",
+    "alpha-ventage-mcp",
+    "supabase",
+    "fetch-mcp",
+    "naver-search-mcp",
+    "exa",
+    "sequential-thinking",
+    "dart-mcp"
+  ],
+  "disabledMcpjsonServers": [],
+  "disablePermissionsForProject": true
+}
