@@ -8,6 +8,9 @@ yarn-error.log*
 dist/
 build/
 
+# 참고 딜렉토리
+bpmn-js-examples
+
 # Environment variables
 .env
 .env.local

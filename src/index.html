@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BPMN Collaborative Editor</title>
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <h1>BPMN Collaborative Editor</h1>
+      <div class="toolbar">
+        <button id="js-create-diagram" class="btn btn-primary">새 다이어그램</button>
+        <div class="download-buttons">
+          <a id="js-download-diagram" href="#" class="btn btn-secondary">BPMN 다운로드</a>
+          <a id="js-download-svg" href="#" class="btn btn-secondary">SVG 다운로드</a>
+        </div>
+      </div>
+    </header>
+    
+    <main class="app-main">
+      <div class="editor-container" id="js-drop-zone">
+        <div class="message intro">
+          <div class="note">
+            BPMN 파일을 드래그하여 가져오거나 <a id="js-create-diagram-link" href="#">새 다이어그램을 생성</a>하세요.
+          </div>
+        </div>
+
+        <div class="message error">
+          <div class="note">
+            <p>BPMN 2.0 다이어그램을 표시할 수 없습니다.</p>
+            <div class="details">
+              <span>오류 원인:</span>
+              <pre></pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="editor-layout">
+          <div class="canvas-container">
+            <div class="canvas" id="js-canvas"></div>
+          </div>
+          <div class="properties-panel-container">
+            <div id="js-properties-panel" class="properties-panel"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+    
+    <footer class="app-footer">
+      <p>실시간 협업 BPMN 에디터 - 기본 에디터 기능 구현</p>
+    </footer>
+  </div>
+</body>
+</html>

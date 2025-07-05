@@ -1,0 +1,319 @@
+/* 인증 모달 스타일 */
+.auth-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.auth-modal-content {
+  position: relative;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  width: 90%;
+  max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
+  z-index: 10000;
+}
+
+.auth-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 1.5rem 0 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 1.5rem;
+}
+
+.auth-modal-header h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.auth-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.auth-modal-close:hover {
+  color: #1e293b;
+}
+
+.auth-modal-body {
+  padding: 0 1.5rem 1.5rem 1.5rem;
+}
+
+/* 폼 스타일 */
+.auth-form {
+  margin-bottom: 1.5rem;
+}
+
+.auth-form-group {
+  margin-bottom: 1rem;
+}
+
+.auth-form-group label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.auth-form-group input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+.auth-form-group input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* 버튼 스타일 */
+.auth-btn {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.auth-btn-primary {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.auth-btn-primary:hover:not(:disabled) {
+  background-color: #2563eb;
+}
+
+.auth-btn-primary:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.auth-btn-google {
+  background-color: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  margin-bottom: 1rem;
+}
+
+.auth-btn-google:hover:not(:disabled) {
+  background-color: #f9fafb;
+}
+
+.auth-btn-google:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 구분선 */
+.auth-divider {
+  position: relative;
+  text-align: center;
+  margin: 1.5rem 0;
+}
+
+.auth-divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: #e5e7eb;
+}
+
+.auth-divider span {
+  background-color: white;
+  color: #6b7280;
+  font-size: 0.875rem;
+  padding: 0 1rem;
+  position: relative;
+}
+
+/* 전환 링크 */
+.auth-switch {
+  text-align: center;
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 1rem;
+}
+
+.auth-link {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: inherit;
+  padding: 0;
+  margin-left: 0.25rem;
+}
+
+.auth-link:hover {
+  color: #2563eb;
+}
+
+/* 에러 및 성공 메시지 */
+.auth-error,
+.auth-success {
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.auth-error {
+  background-color: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+}
+
+.auth-success {
+  background-color: #dcfce7;
+  border: 1px solid #bbf7d0;
+  color: #16a34a;
+}
+
+/* 로딩 상태 */
+.auth-loading {
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.875rem;
+  padding: 0.5rem;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 480px) {
+  .auth-modal-content {
+    width: 95%;
+    margin: 1rem;
+    max-height: 95vh;
+  }
+  
+  .auth-modal-header,
+  .auth-modal-body {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .auth-modal-header h2 {
+    font-size: 1.25rem;
+  }
+}
+
+/* 애니메이션 */
+@keyframes modal-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.auth-modal-content {
+  animation: modal-slide-in 0.3s ease-out;
+}
+
+/* 다크 모드 지원 (향후 확장용) */
+@media (prefers-color-scheme: dark) {
+  .auth-modal-overlay {
+    background-color: rgba(0, 0, 0, 0.7);
+  }
+  
+  .auth-modal-content {
+    background: #1f2937;
+    color: #f9fafb;
+  }
+  
+  .auth-modal-header {
+    border-bottom-color: #374151;
+  }
+  
+  .auth-modal-header h2 {
+    color: #f9fafb;
+  }
+  
+  .auth-form-group label {
+    color: #d1d5db;
+  }
+  
+  .auth-form-group input {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #f9fafb;
+  }
+  
+  .auth-form-group input:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+  }
+  
+  .auth-btn-google {
+    background-color: #374151;
+    color: #f9fafb;
+    border-color: #4b5563;
+  }
+  
+  .auth-btn-google:hover:not(:disabled) {
+    background-color: #4b5563;
+  }
+  
+  .auth-divider::before {
+    background-color: #4b5563;
+  }
+  
+  .auth-divider span {
+    background-color: #1f2937;
+    color: #9ca3af;
+  }
+  
+  .auth-switch {
+    color: #9ca3af;
+  }
+}
