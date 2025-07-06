@@ -1,0 +1,325 @@
+/* Project Manager Styles */
+.project-manager {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  min-width: 250px;
+  max-width: 300px;
+  backdrop-filter: blur(10px);
+}
+
+.project-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.project-header h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: white;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.project-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.project-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.project-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.project-item.selected {
+  background-color: rgba(52, 152, 219, 0.3);
+  border-left: 3px solid #3498db;
+}
+
+.project-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.project-name {
+  font-weight: 500;
+  color: white;
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-meta {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.project-role {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.project-actions {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.project-item:hover .project-actions {
+  opacity: 1;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  border-radius: 3px;
+  color: #6c757d;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-icon:hover {
+  background-color: #e9ecef;
+  color: #495057;
+}
+
+.empty-state {
+  padding: 0.5rem 0.75rem;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.empty-state p {
+  margin: 0.2rem 0;
+  font-size: 0.75rem;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.modal {
+  background: white;
+  border-radius: 8px;
+  min-width: 400px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease-out;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.modal-body {
+  padding: 0.75rem;
+}
+
+.form-group {
+  margin-bottom: 0.5rem;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-weight: 500;
+  color: #495057;
+  font-size: 0.85rem;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e9ecef;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .project-manager {
+    min-width: 200px;
+    margin-right: 0.5rem;
+  }
+  
+  .project-header {
+    padding: 0.75rem;
+  }
+  
+  .project-item {
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .modal {
+    min-width: 90vw;
+    margin: 1rem;
+  }
+  
+  .modal-header,
+  .modal-body {
+    padding: 0.75rem;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .btn {
+    width: 100%;
+  }
+}
+
+/* Diagram Section */
+.diagram-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin-top: 0.5rem;
+}
+
+.diagram-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.diagram-header h4 {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.diagram-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.diagram-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.diagram-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.diagram-item.selected {
+  background-color: rgba(33, 150, 243, 0.3);
+  border-left: 3px solid #2196f3;
+}
+
+.diagram-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.diagram-name {
+  font-weight: 500;
+  color: white;
+  margin-bottom: 0.15rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diagram-meta {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.diagram-actions {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.diagram-item:hover .diagram-actions {
+  opacity: 1;
+}
+
+/* Integration with existing header */
+.app-header {
+  align-items: stretch;
+}
+
+.app-header .project-manager {
+  margin: 0.5rem 0;
+  align-self: center;
+}

@@ -12,8 +12,9 @@ export class CollaborationManager {
     this.awareness = null;
     this.isConnected = false;
     this.listeners = new Map();
-    this.userId = this.generateUserId();
-    this.userColor = this.generateUserColor();
+    this.userId = null; // 실제 로그인 사용자 ID 사용
+    this.userColor = null;
+    this.currentRoomId = null;
   }
 
   /**
@@ -24,6 +25,16 @@ export class CollaborationManager {
    */
   initialize(roomId, websocketUrl = 'ws://localhost:1234', userInfo = {}) {
     try {
+      // 기존 연결이 있으면 정리
+      this.disconnect();
+      
+      // 사용자 정보 설정
+      this.userId = userInfo.id || this.generateUserId();
+      this.userColor = this.generateUserColor(this.userId);
+      this.currentRoomId = roomId;
+      
+      console.log(`협업 초기화: 방 ID=${roomId}, 사용자 ID=${this.userId}, 이름=${userInfo.name}`);
+      
       // Yjs 문서 생성
       this.ydoc = new Y.Doc();
       
@@ -36,10 +47,11 @@ export class CollaborationManager {
       // 로컬 사용자 정보 설정
       this.awareness.setLocalStateField('user', {
         id: this.userId,
-        name: userInfo.name || `사용자 ${this.userId.slice(0, 6)}`,
+        name: userInfo.name || userInfo.email || `사용자 ${this.userId.slice(0, 6)}`,
+        email: userInfo.email,
         color: this.userColor,
         cursor: null,
-        ...userInfo
+        timestamp: Date.now()
       });
 
       // 연결 상태 이벤트 리스너
@@ -58,12 +70,52 @@ export class CollaborationManager {
         this.emit('awarenessChange', { changes });
       });
 
-      console.log(`협업 세션 초기화: 방 ID ${roomId}, 사용자 ID ${this.userId}`);
+      // 페이지 가시성 변경 이벤트 리스너
+      this.setupVisibilityHandler();
+      
+      console.log(`협업 세션 초기화 완료: 방 ID ${roomId}, 사용자 ID ${this.userId}`);
       
     } catch (error) {
       console.error('협업 세션 초기화 실패:', error);
       throw error;
     }
+  }
+
+  /**
+   * 페이지 가시성 변경 처리
+   */
+  setupVisibilityHandler() {
+    // 페이지가 보이지 않을 때 heartbeat 중지
+    document.addEventListener('visibilitychange', () => {
+      if (this.awareness) {
+        if (document.hidden) {
+          // 페이지가 숨겨질 때 타임스탬프 업데이트
+          const currentUser = this.awareness.getLocalState()?.user;
+          if (currentUser) {
+            this.awareness.setLocalStateField('user', {
+              ...currentUser,
+              timestamp: Date.now(),
+              status: 'away'
+            });
+          }
+        } else {
+          // 페이지가 다시 보일 때 타임스탬프 업데이트 및 동기화
+          const currentUser = this.awareness.getLocalState()?.user;
+          if (currentUser) {
+            this.awareness.setLocalStateField('user', {
+              ...currentUser,
+              timestamp: Date.now(),
+              status: 'active'
+            });
+          }
+          
+          // 페이지가 다시 보일 때 동기화 트리거
+          setTimeout(() => {
+            this.emit('awarenessChange', { changes: ['visibility-change'] });
+          }, 200);
+        }
+      }
+    });
   }
 
   /**
@@ -100,11 +152,23 @@ export class CollaborationManager {
     }
     
     const users = [];
-    this.awareness.getStates().forEach((state) => {
-      if (state.user) {
-        users.push(state.user);
+    const seenUsers = new Set();
+    
+    this.awareness.getStates().forEach((state, clientId) => {
+      if (state.user && !seenUsers.has(state.user.id)) {
+        // 5분 이내 활동한 사용자만 포함
+        const lastActivity = state.user.timestamp || 0;
+        const now = Date.now();
+        if (now - lastActivity < 5 * 60 * 1000) {
+          users.push({
+            ...state.user,
+            clientId
+          });
+          seenUsers.add(state.user.id);
+        }
       }
     });
+    
     return users;
   }
 
@@ -172,8 +236,16 @@ export class CollaborationManager {
    * 협업 세션을 종료합니다.
    */
   disconnect() {
+    console.log('Disconnecting collaboration session...');
+    
+    // Awareness에서 사용자 제거
+    if (this.awareness) {
+      this.awareness.setLocalState(null);
+    }
+    
     if (this.provider) {
       this.provider.disconnect();
+      this.provider.destroy();
       this.provider = null;
     }
     
@@ -185,6 +257,9 @@ export class CollaborationManager {
     this.awareness = null;
     this.isConnected = false;
     this.listeners.clear();
+    this.userId = null;
+    this.userColor = null;
+    this.currentRoomId = null;
     
     console.log('협업 세션이 종료되었습니다.');
   }
@@ -199,14 +274,21 @@ export class CollaborationManager {
 
   /**
    * 사용자 색상을 생성합니다.
+   * @param {string} userId - 사용자 ID
    * @returns {string} 색상 코드
    */
-  generateUserColor() {
+  generateUserColor(userId) {
     const colors = [
       '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
       '#DDA0DD', '#FFA07A', '#20B2AA', '#87CEEB', '#DEB887'
     ];
-    return colors[Math.floor(Math.random() * colors.length)];
+    
+    // 사용자 ID를 기반으로 일관된 색상 생성
+    let hash = 0;
+    for (let i = 0; i < userId.length; i++) {
+      hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
   }
 
   /**

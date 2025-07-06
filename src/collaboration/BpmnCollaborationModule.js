@@ -19,6 +19,13 @@ export class BpmnCollaborationModule {
       lastRemoteChange: 0,
       conflicts: []
     };
+    
+    // 커서 및 사용자 상호작용 관리
+    this.cursorState = {
+      localCursor: null,
+      remoteCursors: new Map(),
+      cursorElements: new Map() // DOM 요소 캐시
+    };
   }
 
   /**
@@ -42,6 +49,9 @@ export class BpmnCollaborationModule {
       
       // 이벤트 리스너 설정
       this.setupEventListeners();
+      
+      // 커서 추적 설정
+      this.setupCursorTracking();
       
       // 초기 동기화
       await this.syncFromRemote();
@@ -305,12 +315,203 @@ export class BpmnCollaborationModule {
   }
 
   /**
+   * 커서 추적을 설정합니다.
+   */
+  setupCursorTracking() {
+    if (!this.modeler) return;
+    
+    // Canvas 요소 가져오기
+    const canvas = this.modeler.get('canvas');
+    const eventBus = this.modeler.get('eventBus');
+    const canvasContainer = canvas.getContainer();
+    
+    // 마우스 이동 이벤트 리스너
+    canvasContainer.addEventListener('mousemove', (e) => {
+      this.updateLocalCursor(e);
+    });
+    
+    // 요소 클릭 이벤트 리스너
+    eventBus.on('element.click', (e) => {
+      this.updateLocalCursor(null, e.element);
+    });
+    
+    // Awareness 변경 이벤트 리스너
+    collaborationManager.on('awarenessChange', (data) => {
+      this.updateRemoteCursors();
+    });
+    
+    console.log('👆 커서 추적이 설정되었습니다.');
+  }
+  
+  /**
+   * 로컬 사용자의 커서 위치를 업데이트합니다.
+   * @param {MouseEvent} mouseEvent - 마우스 이벤트
+   * @param {Object} element - 클릭된 BPMN 요소
+   */
+  updateLocalCursor(mouseEvent, element = null) {
+    if (!this.isInitialized) return;
+    
+    const canvas = this.modeler.get('canvas');
+    const canvasContainer = canvas.getContainer();
+    const rect = canvasContainer.getBoundingClientRect();
+    
+    let cursorData = {
+      timestamp: Date.now()
+    };
+    
+    if (mouseEvent) {
+      // 마우스 위치 기반 커서
+      cursorData.x = mouseEvent.clientX - rect.left;
+      cursorData.y = mouseEvent.clientY - rect.top;
+      cursorData.type = 'mouse';
+    }
+    
+    if (element) {
+      // 요소 기반 커서
+      cursorData.elementId = element.id;
+      cursorData.elementType = element.type;
+      cursorData.type = 'element';
+    }
+    
+    // Awareness에 커서 정보 업데이트
+    collaborationManager.updateCursor(cursorData);
+    this.cursorState.localCursor = cursorData;
+  }
+  
+  /**
+   * 원격 사용자들의 커서를 업데이트합니다.
+   */
+  updateRemoteCursors() {
+    if (!this.isInitialized) return;
+    
+    const connectedUsers = collaborationManager.getConnectedUsers();
+    const currentUserId = collaborationManager.getCurrentUser()?.id;
+    
+    // 기존 커서 요소들 정리
+    this.clearOldCursors();
+    
+    connectedUsers.forEach(user => {
+      if (user.id !== currentUserId && user.cursor) {
+        this.renderUserCursor(user);
+      }
+    });
+  }
+  
+  /**
+   * 사용자 커서를 렌더링합니다.
+   * @param {Object} user - 사용자 정보
+   */
+  renderUserCursor(user) {
+    const canvas = this.modeler.get('canvas');
+    const canvasContainer = canvas.getContainer();
+    
+    // 기존 커서 요소 제거
+    const existingCursor = this.cursorState.cursorElements.get(user.id);
+    if (existingCursor) {
+      existingCursor.remove();
+    }
+    
+    // 새 커서 요소 생성
+    const cursorElement = document.createElement('div');
+    cursorElement.className = 'user-cursor';
+    cursorElement.style.cssText = `
+      position: absolute;
+      pointer-events: none;
+      z-index: 1000;
+      font-size: 0.8rem;
+      color: white;
+      background-color: ${user.color};
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      white-space: nowrap;
+      transform: translate(-50%, -100%);
+      margin-top: -5px;
+    `;
+    
+    if (user.cursor.type === 'mouse' && user.cursor.x !== undefined && user.cursor.y !== undefined) {
+      // 마우스 위치 기반 커서
+      cursorElement.style.left = user.cursor.x + 'px';
+      cursorElement.style.top = user.cursor.y + 'px';
+      cursorElement.textContent = user.name;
+    } else if (user.cursor.type === 'element' && user.cursor.elementId) {
+      // 요소 기반 커서
+      const element = canvas.findRoot().children.find(el => el.id === user.cursor.elementId);
+      if (element) {
+        const gfx = canvas.getGraphics(element);
+        if (gfx) {
+          const bbox = gfx.getBBox();
+          cursorElement.style.left = (bbox.x + bbox.width / 2) + 'px';
+          cursorElement.style.top = bbox.y + 'px';
+          cursorElement.textContent = `${user.name} (${user.cursor.elementType})`;
+        }
+      }
+    }
+    
+    canvasContainer.appendChild(cursorElement);
+    this.cursorState.cursorElements.set(user.id, cursorElement);
+  }
+  
+  /**
+   * 오래된 커서들을 정리합니다.
+   */
+  clearOldCursors() {
+    const now = Date.now();
+    const timeout = 10000; // 10초 타임아웃
+    
+    this.cursorState.cursorElements.forEach((element, userId) => {
+      const user = collaborationManager.getConnectedUsers().find(u => u.id === userId);
+      if (!user || !user.cursor || (now - user.cursor.timestamp) > timeout) {
+        element.remove();
+        this.cursorState.cursorElements.delete(userId);
+      }
+    });
+  }
+  
+  /**
+   * 협업 룸을 변경합니다.
+   * @param {string} newRoomId - 새로운 룸 ID
+   */
+  async changeRoom(newRoomId) {
+    if (!newRoomId) {
+      console.warn('새로운 룸 ID가 제공되지 않았습니다.');
+      return;
+    }
+    
+    console.log(`🔄 협업 룸 변경: ${newRoomId}`);
+    
+    try {
+      // 현재 연결 해제
+      if (this.isInitialized) {
+        collaborationManager.disconnect();
+        this.isInitialized = false;
+      }
+      
+      // 새 룸으로 재연결
+      const userInfo = collaborationManager.getCurrentUser();
+      await this.initialize(newRoomId, {
+        websocketUrl: 'ws://localhost:1234',
+        userInfo: userInfo
+      });
+      
+      console.log(`✅ 협업 룸 변경 완료: ${newRoomId}`);
+      
+    } catch (error) {
+      console.error('협업 룸 변경 실패:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 협업 모듈을 종료합니다.
    */
   disconnect() {
     if (this.syncTimeout) {
       clearTimeout(this.syncTimeout);
     }
+    
+    // 모든 커서 요소 제거
+    this.cursorState.cursorElements.forEach(element => element.remove());
+    this.cursorState.cursorElements.clear();
     
     this.eventListeners.clear();
     collaborationManager.disconnect();

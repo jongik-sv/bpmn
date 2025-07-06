@@ -208,6 +208,137 @@
   }
 }
 
+/* Social Login Styles */
+.divider {
+  text-align: center;
+  margin: 1.5rem 0;
+  position: relative;
+}
+
+.divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: #e9ecef;
+}
+
+.divider span {
+  background-color: white;
+  color: #6c757d;
+  padding: 0 1rem;
+  font-size: 0.9rem;
+}
+
+.social-login {
+  margin-bottom: 1.5rem;
+}
+
+.btn-google {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  background-color: white;
+  color: #3c4043;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-google:hover:not(:disabled) {
+  background-color: #f8f9fa;
+  border-color: #c6c8ca;
+}
+
+.btn-google:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-magic {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #28a745;
+  border-radius: 4px;
+  background-color: #28a745;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.btn-magic:hover:not(:disabled) {
+  background-color: #218838;
+  border-color: #1e7e34;
+}
+
+.btn-magic:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-switch {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.auth-switch p {
+  margin: 0;
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+.auth-switch a {
+  color: #3498db;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.auth-switch a:hover {
+  text-decoration: underline;
+}
+
+/* Message Styles */
+.message {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.message.success-message {
+  background-color: #d4edda;
+  color: #155724;
+  border-color: #c3e6cb;
+}
+
+.message-icon {
+  font-size: 1.1rem;
+}
+
+.message-text {
+  font-size: 0.9rem;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .login-modal {
@@ -229,5 +360,9 @@
   
   .btn {
     width: 100%;
+  }
+  
+  .btn-google {
+    font-size: 0.8rem;
   }
 }

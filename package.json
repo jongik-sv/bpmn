@@ -7,8 +7,11 @@
     "dev": "webpack-dev-server --static=public --open",
     "build": "webpack --mode production",
     "start": "npm run dev",
-    "ws-server": "node server/websocket-server.js",
-    "dev:full": "concurrently \"npm run ws-server\" \"npm run dev\""
+    "ws-server": "node websocket-server.js",
+    "dev:full": "concurrently \"npm run ws-server\" \"npm run dev\"",
+    "collab": "npm run dev:full",
+    "setup-db": "node scripts/setup-database.js",
+    "db:test": "node -e \"import('./scripts/setup-database.js').then(m => m.testConnection())\""
   },
   "keywords": [
     "bpmn",

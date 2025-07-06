@@ -1,55 +1,151 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BPMN Collaborative Editor</title>
+  <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='90' font-size='90'>🔧</text></svg>" />
 </head>
 <body>
-  <div class="app-container">
-    <header class="app-header">
-      <h1>BPMN Collaborative Editor</h1>
-      <div class="toolbar">
-        <button id="js-create-diagram" class="btn btn-primary">새 다이어그램</button>
-        <div class="download-buttons">
-          <a id="js-download-diagram" href="#" class="btn btn-secondary">BPMN 다운로드</a>
-          <a id="js-download-svg" href="#" class="btn btn-secondary">SVG 다운로드</a>
+  <!-- 랜딩 페이지 -->
+  <div id="landing-page" class="page-container">
+    <div class="landing-content">
+      <div class="hero-section">
+        <div class="hero-text">
+          <h1>BPMN Collaborative Editor</h1>
+          <p>실시간 협업으로 비즈니스 프로세스를 함께 설계하세요</p>
+          <div class="hero-buttons">
+            <button id="login-btn" class="btn btn-primary btn-lg">로그인</button>
+            <button id="signup-btn" class="btn btn-outline-primary btn-lg">회원가입</button>
+          </div>
+        </div>
+        <div class="hero-image">
+          <div class="bpmn-preview">
+            <svg width="300" height="200" viewBox="0 0 300 200">
+              <rect x="50" y="80" width="80" height="40" rx="20" fill="#e3f2fd" stroke="#2196f3" stroke-width="2"/>
+              <text x="90" y="105" text-anchor="middle" fill="#1976d2" font-size="12">시작</text>
+              <rect x="170" y="75" width="80" height="50" rx="5" fill="#fff3e0" stroke="#ff9800" stroke-width="2"/>
+              <text x="210" y="105" text-anchor="middle" fill="#f57c00" font-size="12">프로세스</text>
+              <line x1="130" y1="100" x2="170" y2="100" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+              <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#666"/>
+                </marker>
+              </defs>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 대시보드 페이지 -->
+  <div id="dashboard-page" class="page-container" style="display: none;">
+    <header class="dashboard-header">
+      <div class="header-left">
+        <h1>프로젝트 대시보드</h1>
+      </div>
+      <div class="header-right">
+        <div class="user-menu">
+          <span id="user-name" class="user-name">사용자</span>
+          <button id="user-menu-btn" class="btn btn-secondary btn-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+            </svg>
+          </button>
         </div>
       </div>
     </header>
     
-    <main class="app-main">
-      <div class="editor-container" id="js-drop-zone">
-        <div class="message intro">
-          <div class="note">
-            BPMN 파일을 드래그하여 가져오거나 <a id="js-create-diagram-link" href="#">새 다이어그램을 생성</a>하세요.
-          </div>
-        </div>
-
-        <div class="message error">
-          <div class="note">
-            <p>BPMN 2.0 다이어그램을 표시할 수 없습니다.</p>
-            <div class="details">
-              <span>오류 원인:</span>
-              <pre></pre>
-            </div>
-          </div>
-        </div>
-
-        <div class="editor-layout">
-          <div class="canvas-container">
-            <div class="canvas" id="js-canvas"></div>
-          </div>
-          <div class="properties-panel-container">
-            <div id="js-properties-panel" class="properties-panel"></div>
+    <div class="dashboard-content">
+      <div class="sidebar">
+        <div class="sidebar-section">
+          <h3>프로젝트 관리</h3>
+          <div class="sidebar-buttons">
+            <button id="create-project-btn" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+              </svg>
+              새 프로젝트
+            </button>
+            <button id="invite-users-btn" class="btn btn-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+              </svg>
+              사용자 초대
+            </button>
           </div>
         </div>
       </div>
-    </main>
-    
-    <footer class="app-footer">
-      <p>실시간 협업 BPMN 에디터 - 기본 에디터 기능 구현</p>
-    </footer>
+      
+      <div class="main-content">
+        <div class="projects-grid" id="projects-grid">
+          <!-- 프로젝트 카드들이 여기에 동적으로 추가됩니다 -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 메인 에디터 페이지 -->
+  <div id="editor-page" class="page-container" style="display: none;">
+    <div class="editor-layout">
+      <div class="file-sidebar">
+        <div class="sidebar-header">
+          <button id="back-to-dashboard" class="btn btn-secondary btn-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"/>
+            </svg>
+            대시보드
+          </button>
+          <h3 id="current-project-name">프로젝트</h3>
+        </div>
+        <div class="file-tree" id="file-tree">
+          <!-- 폴더 구조가 여기에 표시됩니다 -->
+        </div>
+      </div>
+      
+      <div class="editor-main">
+        <div class="editor-header">
+          <div class="breadcrumb" id="breadcrumb">
+            <!-- 경로 표시 -->
+          </div>
+          <div class="editor-actions">
+            <button id="save-diagram" class="btn btn-primary btn-sm">저장</button>
+            <div class="download-buttons">
+              <a id="js-download-diagram" href="#" class="btn btn-secondary btn-sm">BPMN</a>
+              <a id="js-download-svg" href="#" class="btn btn-secondary btn-sm">SVG</a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="editor-container" id="js-drop-zone">
+          <div class="message intro">
+            <div class="note">
+              왼쪽에서 BPMN 파일을 선택하거나 새 파일을 생성하세요.
+            </div>
+          </div>
+
+          <div class="message error">
+            <div class="note">
+              <p>BPMN 2.0 다이어그램을 표시할 수 없습니다.</p>
+              <div class="details">
+                <span>오류 원인:</span>
+                <pre></pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="editor-workspace">
+            <div class="canvas-container">
+              <div class="canvas" id="js-canvas"></div>
+            </div>
+            <div class="properties-panel-container">
+              <div id="js-properties-panel" class="properties-panel"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </body>
 </html>
