@@ -53,8 +53,11 @@ export class BpmnCollaborationModule {
       // 커서 추적 설정
       this.setupCursorTracking();
       
-      // 초기 동기화
-      await this.syncFromRemote();
+      // 초기 동기화 (원격 데이터가 있으면 로드)
+      const remoteXml = this.sharedDiagram.get('xml');
+      if (remoteXml && remoteXml !== currentXml) {
+        await this.syncFromRemote();
+      }
       
       this.isInitialized = true;
       
@@ -211,11 +214,25 @@ export class BpmnCollaborationModule {
    */
   async getCurrentBpmnXml() {
     try {
+      // 모델러에 정의가 로드되어 있는지 확인
+      const definitions = this.modeler.getDefinitions();
+      if (!definitions) {
+        // 정의가 없으면 기본 BPMN XML 반환
+        return '<?xml version="1.0" encoding="UTF-8"?>\n' +
+               '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">\n' +
+               '  <bpmn:process id="Process_1" isExecutable="true" />\n' +
+               '</bpmn:definitions>';
+      }
+      
       const result = await this.modeler.saveXML({ format: true });
       return result.xml;
     } catch (error) {
       console.error('BPMN XML 가져오기 실패:', error);
-      throw error;
+      // 실패 시 기본 BPMN XML 반환
+      return '<?xml version="1.0" encoding="UTF-8"?>\n' +
+             '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">\n' +
+             '  <bpmn:process id="Process_1" isExecutable="true" />\n' +
+             '</bpmn:definitions>';
     }
   }
 
@@ -470,8 +487,9 @@ export class BpmnCollaborationModule {
   /**
    * 협업 룸을 변경합니다.
    * @param {string} newRoomId - 새로운 룸 ID
+   * @param {Object} userInfo - 사용자 정보 (선택사항)
    */
-  async changeRoom(newRoomId) {
+  async changeRoom(newRoomId, userInfo = null) {
     if (!newRoomId) {
       console.warn('새로운 룸 ID가 제공되지 않았습니다.');
       return;
@@ -486,11 +504,20 @@ export class BpmnCollaborationModule {
         this.isInitialized = false;
       }
       
+      // 사용자 정보 가져오기 (제공되지 않으면 기존 사용자 정보 사용)
+      const currentUserInfo = userInfo || collaborationManager.getCurrentUser();
+      
+      // 사용자 정보가 없으면 기본값 사용
+      const finalUserInfo = currentUserInfo || {
+        id: 'anonymous-' + Date.now(),
+        name: 'Anonymous User',
+        email: 'anonymous@example.com'
+      };
+      
       // 새 룸으로 재연결
-      const userInfo = collaborationManager.getCurrentUser();
       await this.initialize(newRoomId, {
         websocketUrl: 'ws://localhost:1234',
-        userInfo: userInfo
+        userInfo: finalUserInfo
       });
       
       console.log(`✅ 협업 룸 변경 완료: ${newRoomId}`);

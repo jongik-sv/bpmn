@@ -51,14 +51,26 @@ export class BpmnEditor {
   /**
    * 프로젝트 설정
    */
-  setProject(project) {
+  async setProject(project) {
     this.currentProject = project;
+    
+    // 기본 다이어그램 먼저 로드
+    if (!this.currentDiagram) {
+      await this.createNewDiagram();
+    }
     
     // 협업 룸 ID 업데이트
     if (this.collaborationModule && project) {
       const roomId = `project-${project.id}`;
       try {
-        this.collaborationModule.changeRoom(roomId);
+        // 현재 사용자 정보와 함께 룸 변경
+        const userInfo = this.currentUser ? {
+          id: this.currentUser.id,
+          name: this.currentUser.user_metadata?.display_name || this.currentUser.email,
+          email: this.currentUser.email
+        } : null;
+        
+        await this.collaborationModule.changeRoom(roomId, userInfo);
       } catch (error) {
         console.warn('협업 룸 변경 실패:', error);
       }
@@ -118,9 +130,24 @@ export class BpmnEditor {
     try {
       const { xml } = await this.modeler.saveXML({ format: true });
       
-      // TODO: 데이터베이스에 저장
-      console.log('Saving diagram:', this.currentDiagram.name);
-      console.log('XML content:', xml);
+      // 데이터베이스에 저장
+      if (window.dbManager && this.currentDiagram.id !== 'new') {
+        const result = await window.dbManager.updateDiagram(this.currentDiagram.id, {
+          bpmn_xml: xml,
+          last_modified_by: this.currentUser?.id
+        });
+        
+        if (result.error) {
+          console.error('Database save error:', result.error);
+          // 로컬 스토리지에 백업 저장
+          this.saveToLocalStorage(xml);
+        } else {
+          console.log('Diagram saved to database:', this.currentDiagram.name);
+        }
+      } else {
+        // 새 다이어그램이거나 DB 연결이 없으면 로컬에 저장
+        this.saveToLocalStorage(xml);
+      }
       
       window.appManager.showNotification('다이어그램이 저장되었습니다.', 'success');
       
@@ -128,6 +155,98 @@ export class BpmnEditor {
       console.error('Save diagram error:', error);
       window.appManager.showNotification('저장에 실패했습니다.', 'error');
     }
+  }
+
+  /**
+   * 다이어그램 자동 저장
+   */
+  async autoSaveDiagram() {
+    if (!this.currentDiagram || this.currentDiagram.id === 'new') {
+      return; // 새 다이어그램은 자동 저장하지 않음
+    }
+
+    try {
+      const { xml } = await this.modeler.saveXML({ format: true });
+      
+      // 데이터베이스에 자동 저장
+      if (window.dbManager) {
+        const result = await window.dbManager.updateDiagram(this.currentDiagram.id, {
+          bpmn_xml: xml,
+          last_modified_by: this.currentUser?.id
+        });
+        
+        if (result.error) {
+          console.warn('Auto-save to database failed:', result.error);
+          // 로컬 스토리지에 백업 저장
+          this.saveToLocalStorage(xml);
+        } else {
+          console.log('Auto-saved:', this.currentDiagram.name);
+          // 조용한 알림 (상태 표시)
+          this.showAutoSaveStatus('저장됨');
+        }
+      } else {
+        // DB 연결이 없으면 로컬에 저장
+        this.saveToLocalStorage(xml);
+        this.showAutoSaveStatus('로컬 저장됨');
+      }
+      
+    } catch (error) {
+      console.warn('Auto-save failed:', error);
+      this.showAutoSaveStatus('저장 실패');
+    }
+  }
+
+  /**
+   * 로컬 스토리지에 저장
+   */
+  saveToLocalStorage(xml) {
+    if (!this.currentDiagram) return;
+    
+    const key = `bpmn-diagram-${this.currentDiagram.id}`;
+    const data = {
+      id: this.currentDiagram.id,
+      name: this.currentDiagram.name,
+      xml: xml,
+      lastSaved: new Date().toISOString()
+    };
+    
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+      console.log('Saved to localStorage:', key);
+    } catch (error) {
+      console.error('localStorage save failed:', error);
+    }
+  }
+
+  /**
+   * 자동 저장 상태 표시
+   */
+  showAutoSaveStatus(message) {
+    const statusEl = $('#auto-save-status');
+    if (statusEl.length === 0) {
+      // 상태 표시 요소가 없으면 생성
+      $('body').append(`<div id="auto-save-status" style="
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #10b981;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 4px;
+        font-size: 0.875rem;
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.3s;
+      ">${message}</div>`);
+    } else {
+      statusEl.text(message);
+    }
+    
+    // 페이드 인/아웃 효과
+    $('#auto-save-status').css('opacity', '1');
+    setTimeout(() => {
+      $('#auto-save-status').css('opacity', '0');
+    }, 2000);
   }
 
   /**
@@ -147,8 +266,11 @@ export class BpmnEditor {
 
     this.container.removeClass('with-diagram');
     
-    // 다이어그램 변경 시 내보내기 업데이트
-    this.modeler.on('commandStack.changed', this.exportArtifacts.bind(this));
+    // 다이어그램 변경 시 내보내기 업데이트 및 자동 저장
+    this.modeler.on('commandStack.changed', debounce(() => {
+      this.exportArtifacts();
+      this.autoSaveDiagram();
+    }, 1000));
   }
 
   /**

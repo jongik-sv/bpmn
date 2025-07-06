@@ -7,10 +7,12 @@ export class DatabaseManager {
   constructor() {
     this.supabase = supabase;
     // 개발 중 강제 로컬 모드 (환경 변수로 제어 가능)
-    this.forceLocalMode = process.env.NODE_ENV === 'development' && localStorage.getItem('bpmn_force_local') === 'true';
+    this.forceLocalMode = localStorage.getItem('bpmn_force_local') === 'true';
     
     if (this.forceLocalMode) {
-      console.log('🔧 Force local mode enabled');
+      console.log('🔧 Force local mode enabled - using localStorage');
+    } else {
+      console.log('🌐 Database mode enabled - using Supabase');
     }
   }
 
@@ -18,28 +20,27 @@ export class DatabaseManager {
    * 데이터베이스 연결 테스트
    */
   async testConnection() {
+    if (this.forceLocalMode) {
+      console.log('🔧 Local mode - skipping database connection test');
+      return false;
+    }
+
     try {
-      // 간단한 연결 테스트 - auth.users 테이블 확인 (항상 존재함)
-      const { data, error } = await this.supabase.auth.getSession();
+      // profiles 테이블 존재 여부 확인
+      const { data, error } = await this.supabase
+        .from('profiles')
+        .select('count', { count: 'exact', head: true })
+        .limit(1);
       
-      if (error && error.message !== 'Auth session missing!') {
-        console.warn('Database connection issue:', error.message);
+      if (error) {
+        console.warn('Database schema not ready:', error.message);
+        console.log('💡 데이터베이스 스키마를 설정해주세요:');
+        console.log('   1. https://yigkpwxaemgcasxtopup.supabase.co/project/default/sql');
+        console.log('   2. database/supabase-setup.sql 파일의 내용을 복사해서 실행');
         return false;
       }
       
-      console.log('✅ Database connection successful');
-      
-      // profiles 테이블 존재 여부 확인 (선택적)
-      try {
-        await this.supabase
-          .from('profiles')
-          .select('count', { count: 'exact', head: true })
-          .limit(1);
-        console.log('✅ Database schema ready');
-      } catch (schemaError) {
-        console.log('⚠️ Database connected but custom schema not set up yet');
-      }
-      
+      console.log('✅ Database connection and schema ready');
       return true;
     } catch (error) {
       console.error('Database connection error:', error);
@@ -123,7 +124,8 @@ export class DatabaseManager {
       await this.addProjectMember({
         project_id: data.id,
         user_id: projectData.owner_id,
-        role: 'owner'
+        role: 'owner',
+        status: 'accepted'
       });
 
       return { data, error: null };
@@ -151,7 +153,11 @@ export class DatabaseManager {
         updated_at: new Date().toISOString(),
         project_members: [{
           role: 'owner',
-          user_id: projectData.owner_id
+          user_id: projectData.owner_id,
+          status: 'accepted',
+          invited_at: new Date().toISOString(),
+          display_name: projectData.owner_name || 'Unknown User',
+          email: projectData.owner_email || ''
         }]
       };
       
@@ -171,6 +177,11 @@ export class DatabaseManager {
    * 사용자의 프로젝트 목록 가져오기
    */
   async getUserProjects(userId) {
+    // 강제 로컬 모드이거나 데이터베이스 연결 실패 시 로컬 스토리지 사용
+    if (this.forceLocalMode) {
+      return this.getUserProjectsLocal(userId);
+    }
+
     try {
       const { data, error } = await this.supabase
         .from('projects')
@@ -187,6 +198,7 @@ export class DatabaseManager {
         return this.getUserProjectsLocal(userId);
       }
 
+      console.log('✅ Loaded projects from database:', data.length);
       return { data, error: null };
     } catch (error) {
       console.error('User projects fetch error, using local fallback:', error);
@@ -298,34 +310,6 @@ export class DatabaseManager {
     }
   }
 
-  /**
-   * 프로젝트의 다이어그램 목록 가져오기
-   */
-  async getProjectDiagrams(projectId) {
-    try {
-      const { data, error } = await this.supabase
-        .from('diagrams')
-        .select(`
-          *,
-          created_by_profile:profiles!diagrams_created_by_fkey(display_name, email),
-          last_modified_by_profile:profiles!diagrams_last_modified_by_fkey(display_name, email),
-          folder:folders(name)
-        `)
-        .eq('project_id', projectId)
-        .eq('is_active', true)
-        .order('updated_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching project diagrams:', error);
-        return { data: [], error };
-      }
-
-      return { data, error: null };
-    } catch (error) {
-      console.error('Project diagrams fetch error:', error);
-      return { data: [], error };
-    }
-  }
 
   /**
    * 다이어그램 가져오기
@@ -425,6 +409,504 @@ export class DatabaseManager {
       return { data: null, error };
     }
   }
+
+  /**
+   * 프로젝트 다이어그램 목록 가져오기 (개선된 버전)
+   */
+  async getProjectDiagrams(projectId) {
+    if (this.forceLocalMode) {
+      return this.getProjectDiagramsLocal(projectId);
+    }
+
+    try {
+      const { data, error } = await this.supabase
+        .from('diagrams')
+        .select(`
+          *,
+          created_by_profile:profiles!diagrams_created_by_fkey(display_name, email),
+          last_modified_by_profile:profiles!diagrams_last_modified_by_fkey(display_name, email),
+          folder:folders(name)
+        `)
+        .eq('project_id', projectId)
+        .eq('is_active', true)
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching project diagrams, using local fallback:', error);
+        return this.getProjectDiagramsLocal(projectId);
+      }
+
+      return { data, error: null };
+    } catch (error) {
+      console.error('Project diagrams fetch error, using local fallback:', error);
+      return this.getProjectDiagramsLocal(projectId);
+    }
+  }
+
+  /**
+   * 로컬 스토리지에서 프로젝트 다이어그램 가져오기
+   */
+  getProjectDiagramsLocal(projectId) {
+    try {
+      const diagrams = JSON.parse(localStorage.getItem('bpmn_diagrams') || '[]');
+      const projectDiagrams = diagrams.filter(diagram => 
+        diagram.project_id === projectId && diagram.is_active !== false
+      );
+      
+      console.log('✅ Loaded diagrams from local storage:', projectDiagrams.length);
+      return { data: projectDiagrams, error: null };
+    } catch (error) {
+      console.error('Local diagrams fetch error:', error);
+      return { data: [], error };
+    }
+  }
+
+  /**
+   * 다이어그램 생성 (개선된 버전)
+   */
+  async createDiagram(diagramData) {
+    if (this.forceLocalMode) {
+      return this.createDiagramLocal(diagramData);
+    }
+
+    try {
+      const { data, error } = await this.supabase
+        .from('diagrams')
+        .insert({
+          project_id: diagramData.project_id,
+          folder_id: diagramData.folder_id,
+          name: diagramData.name,
+          description: diagramData.description,
+          bpmn_xml: diagramData.bpmn_xml,
+          created_by: diagramData.created_by,
+          last_modified_by: diagramData.created_by
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating diagram, using local fallback:', error);
+        return this.createDiagramLocal(diagramData);
+      }
+
+      console.log('✅ Diagram created in database:', data);
+      return { data, error: null };
+    } catch (error) {
+      console.error('Diagram creation error, using local fallback:', error);
+      return this.createDiagramLocal(diagramData);
+    }
+  }
+
+  /**
+   * 로컬 스토리지에서 다이어그램 생성
+   */
+  createDiagramLocal(diagramData) {
+    try {
+      const diagrams = JSON.parse(localStorage.getItem('bpmn_diagrams') || '[]');
+      
+      const newDiagram = {
+        id: 'local_diagram_' + Date.now(),
+        project_id: diagramData.project_id,
+        folder_id: diagramData.folder_id,
+        name: diagramData.name,
+        description: diagramData.description,
+        bpmn_xml: diagramData.bpmn_xml,
+        created_by: diagramData.created_by,
+        last_modified_by: diagramData.created_by,
+        version: 1,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      diagrams.push(newDiagram);
+      localStorage.setItem('bpmn_diagrams', JSON.stringify(diagrams));
+      
+      console.log('✅ Diagram created locally:', newDiagram);
+      return { data: newDiagram, error: null };
+    } catch (error) {
+      console.error('Local diagram creation error:', error);
+      return { data: null, error };
+    }
+  }
+
+  /**
+   * 다이어그램 업데이트
+   */
+  async updateDiagram(diagramId, updates) {
+    if (this.forceLocalMode) {
+      return this.updateDiagramLocal(diagramId, updates);
+    }
+
+    try {
+      const { data, error } = await this.supabase
+        .from('diagrams')
+        .update({
+          ...updates,
+          version: updates.version ? updates.version + 1 : undefined,
+          updated_at: new Date().toISOString(),
+          last_modified_by: updates.last_modified_by
+        })
+        .eq('id', diagramId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating diagram, using local fallback:', error);
+        return this.updateDiagramLocal(diagramId, updates);
+      }
+
+      return { data, error: null };
+    } catch (error) {
+      console.error('Diagram update error, using local fallback:', error);
+      return this.updateDiagramLocal(diagramId, updates);
+    }
+  }
+
+  /**
+   * 로컬 스토리지에서 다이어그램 업데이트
+   */
+  updateDiagramLocal(diagramId, updates) {
+    try {
+      const diagrams = JSON.parse(localStorage.getItem('bpmn_diagrams') || '[]');
+      const diagramIndex = diagrams.findIndex(d => d.id === diagramId);
+      
+      if (diagramIndex === -1) {
+        return { data: null, error: { message: 'Diagram not found' } };
+      }
+      
+      diagrams[diagramIndex] = {
+        ...diagrams[diagramIndex],
+        ...updates,
+        updated_at: new Date().toISOString()
+      };
+      
+      localStorage.setItem('bpmn_diagrams', JSON.stringify(diagrams));
+      
+      console.log('✅ Diagram updated locally:', diagrams[diagramIndex]);
+      return { data: diagrams[diagramIndex], error: null };
+    } catch (error) {
+      console.error('Local diagram update error:', error);
+      return { data: null, error };
+    }
+  }
+
+  /**
+   * 폴더 생성
+   */
+  async createFolder(folderData) {
+    console.log('DatabaseManager.createFolder called with:', folderData);
+    console.log('DatabaseManager state:', {
+      hasSupabase: !!this.supabase,
+      forceLocalMode: this.forceLocalMode,
+      isConnected: this.isConnected
+    });
+    
+    if (this.forceLocalMode) {
+      console.log('Using local mode for folder creation');
+      return this.createFolderLocal(folderData);
+    }
+
+    if (this.supabase) {
+      try {
+        console.log('Creating folder in Supabase...');
+        const insertData = {
+          project_id: folderData.project_id,
+          parent_id: folderData.parent_id || null,
+          name: folderData.name,
+          created_by: folderData.created_by
+        };
+        console.log('Insert data:', insertData);
+
+        const { data, error } = await this.supabase
+          .from('folders')
+          .insert(insertData)
+          .select()
+          .single();
+
+        console.log('Supabase response:', { data, error });
+
+        if (error) {
+          console.error('Supabase folder creation error, falling back to local:', error);
+          console.error('Error details:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          });
+          return this.createFolderLocal(folderData);
+        }
+
+        return { data, error: null };
+      } catch (error) {
+        console.error('Create folder error, falling back to local:', error);
+        return this.createFolderLocal(folderData);
+      }
+    } else {
+      console.log('No Supabase connection, using local storage');
+      return this.createFolderLocal(folderData);
+    }
+  }
+
+  /**
+   * 로컬 스토리지에 폴더 생성
+   */
+  createFolderLocal(folderData) {
+    try {
+      console.log('Creating folder locally with data:', folderData);
+      const folders = JSON.parse(localStorage.getItem('bpmn_folders') || '[]');
+      console.log('Existing folders:', folders);
+      
+      const newFolder = {
+        id: 'folder-' + Date.now(),
+        project_id: folderData.project_id,
+        parent_id: folderData.parent_id || null,
+        name: folderData.name,
+        created_by: folderData.created_by,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        path: this.calculateFolderPath(folders, folderData.parent_id, folderData.name)
+      };
+      
+      console.log('New folder object:', newFolder);
+      
+      folders.push(newFolder);
+      localStorage.setItem('bpmn_folders', JSON.stringify(folders));
+      
+      console.log('✅ Folder created locally:', newFolder);
+      return { data: newFolder, error: null };
+    } catch (error) {
+      console.error('Local folder creation error:', error);
+      return { data: null, error };
+    }
+  }
+
+  /**
+   * 프로젝트 폴더 조회
+   */
+  async getProjectFolders(projectId) {
+    if (this.forceLocalMode) {
+      return this.getProjectFoldersLocal(projectId);
+    }
+
+    if (this.supabase) {
+      try {
+        const { data, error } = await this.supabase
+          .from('folders')
+          .select('*')
+          .eq('project_id', projectId)
+          .order('path');
+
+        if (error) {
+          console.error('Get project folders error, using local fallback:', error);
+          return this.getProjectFoldersLocal(projectId);
+        }
+
+        return { data, error: null };
+      } catch (error) {
+        console.error('Get project folders error, using local fallback:', error);
+        return this.getProjectFoldersLocal(projectId);
+      }
+    } else {
+      return this.getProjectFoldersLocal(projectId);
+    }
+  }
+
+  /**
+   * 로컬 스토리지에서 프로젝트 폴더 조회
+   */
+  getProjectFoldersLocal(projectId) {
+    try {
+      const folders = JSON.parse(localStorage.getItem('bpmn_folders') || '[]');
+      const projectFolders = folders.filter(folder => folder.project_id === projectId);
+      
+      return { data: projectFolders, error: null };
+    } catch (error) {
+      console.error('Local folders fetch error:', error);
+      return { data: [], error };
+    }
+  }
+
+  /**
+   * 폴더 경로 계산 (로컬용)
+   */
+  calculateFolderPath(folders, parentId, folderName) {
+    if (!parentId) {
+      return folderName;
+    }
+    
+    const parent = folders.find(f => f.id === parentId);
+    if (!parent) {
+      return folderName;
+    }
+    
+    return parent.path + '/' + folderName;
+  }
+
+  /**
+   * 폴더 삭제
+   */
+  async deleteFolder(folderId) {
+    if (this.supabase) {
+      try {
+        const { data, error } = await this.supabase
+          .from('folders')
+          .delete()
+          .eq('id', folderId)
+          .select();
+
+        return { data, error };
+      } catch (error) {
+        console.error('Delete folder error:', error);
+        return this.deleteFolderLocal(folderId);
+      }
+    } else {
+      return this.deleteFolderLocal(folderId);
+    }
+  }
+
+  /**
+   * 로컬 스토리지에서 폴더 삭제
+   */
+  deleteFolderLocal(folderId) {
+    try {
+      const folders = JSON.parse(localStorage.getItem('bpmn_folders') || '[]');
+      const updatedFolders = folders.filter(folder => folder.id !== folderId);
+      
+      localStorage.setItem('bpmn_folders', JSON.stringify(updatedFolders));
+      
+      return { data: { id: folderId }, error: null };
+    } catch (error) {
+      console.error('Local folder deletion error:', error);
+      return { data: null, error };
+    }
+  }
+
+  /**
+   * 폴더 이름 변경
+   */
+  async renameFolder(folderId, newName) {
+    if (this.forceLocalMode) {
+      return this.renameFolderLocal(folderId, newName);
+    }
+
+    if (this.supabase) {
+      try {
+        const { data, error } = await this.supabase
+          .from('folders')
+          .update({ 
+            name: newName,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', folderId)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Supabase folder rename error, falling back to local:', error);
+          return this.renameFolderLocal(folderId, newName);
+        }
+
+        return { data, error: null };
+      } catch (error) {
+        console.error('Rename folder error, falling back to local:', error);
+        return this.renameFolderLocal(folderId, newName);
+      }
+    } else {
+      return this.renameFolderLocal(folderId, newName);
+    }
+  }
+
+  /**
+   * 로컬 스토리지에서 폴더 이름 변경
+   */
+  renameFolderLocal(folderId, newName) {
+    try {
+      const folders = JSON.parse(localStorage.getItem('bpmn_folders') || '[]');
+      const folderIndex = folders.findIndex(f => f.id === folderId);
+      
+      if (folderIndex === -1) {
+        return { data: null, error: { message: 'Folder not found' } };
+      }
+      
+      folders[folderIndex] = {
+        ...folders[folderIndex],
+        name: newName,
+        updated_at: new Date().toISOString()
+      };
+      
+      localStorage.setItem('bpmn_folders', JSON.stringify(folders));
+      
+      console.log('✅ Folder renamed locally:', folders[folderIndex]);
+      return { data: folders[folderIndex], error: null };
+    } catch (error) {
+      console.error('Local folder rename error:', error);
+      return { data: null, error };
+    }
+  }
+
+  /**
+   * 폴더 업데이트 (드래그앤드롭용)
+   */
+  async updateFolder(folderId, updates) {
+    if (this.forceLocalMode) {
+      return this.updateFolderLocal(folderId, updates);
+    }
+
+    if (this.supabase) {
+      try {
+        const { data, error } = await this.supabase
+          .from('folders')
+          .update({
+            ...updates,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', folderId)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Supabase folder update error, falling back to local:', error);
+          return this.updateFolderLocal(folderId, updates);
+        }
+
+        return { data, error: null };
+      } catch (error) {
+        console.error('Update folder error, falling back to local:', error);
+        return this.updateFolderLocal(folderId, updates);
+      }
+    } else {
+      return this.updateFolderLocal(folderId, updates);
+    }
+  }
+
+  /**
+   * 로컬 스토리지에서 폴더 업데이트
+   */
+  updateFolderLocal(folderId, updates) {
+    try {
+      const folders = JSON.parse(localStorage.getItem('bpmn_folders') || '[]');
+      const folderIndex = folders.findIndex(f => f.id === folderId);
+      
+      if (folderIndex === -1) {
+        return { data: null, error: { message: 'Folder not found' } };
+      }
+      
+      folders[folderIndex] = {
+        ...folders[folderIndex],
+        ...updates,
+        updated_at: new Date().toISOString()
+      };
+      
+      localStorage.setItem('bpmn_folders', JSON.stringify(folders));
+      
+      console.log('✅ Folder updated locally:', folders[folderIndex]);
+      return { data: folders[folderIndex], error: null };
+    } catch (error) {
+      console.error('Local folder update error:', error);
+      return { data: null, error };
+    }
+  }
 }
 
 // 싱글톤 인스턴스
@@ -438,3 +920,8 @@ export const createDiagram = (diagramData) => dbManager.createDiagram(diagramDat
 export const updateDiagram = (diagramId, updates) => dbManager.updateDiagram(diagramId, updates);
 export const getDiagram = (diagramId) => dbManager.getDiagram(diagramId);
 export const getProjectDiagrams = (projectId) => dbManager.getProjectDiagrams(projectId);
+export const createFolder = (folderData) => dbManager.createFolder(folderData);
+export const getProjectFolders = (projectId) => dbManager.getProjectFolders(projectId);
+export const deleteFolder = (folderId) => dbManager.deleteFolder(folderId);
+export const renameFolder = (folderId, newName) => dbManager.renameFolder(folderId, newName);
+export const updateFolder = (folderId, updates) => dbManager.updateFolder(folderId, updates);

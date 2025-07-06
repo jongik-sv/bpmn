@@ -28,12 +28,15 @@ export class CollaborationManager {
       // 기존 연결이 있으면 정리
       this.disconnect();
       
+      // userInfo가 null이면 빈 객체로 초기화
+      const safeUserInfo = userInfo || {};
+      
       // 사용자 정보 설정
-      this.userId = userInfo.id || this.generateUserId();
+      this.userId = safeUserInfo.id || this.generateUserId();
       this.userColor = this.generateUserColor(this.userId);
       this.currentRoomId = roomId;
       
-      console.log(`협업 초기화: 방 ID=${roomId}, 사용자 ID=${this.userId}, 이름=${userInfo.name}`);
+      console.log(`협업 초기화: 방 ID=${roomId}, 사용자 ID=${this.userId}, 이름=${safeUserInfo.name || 'Unknown'}`);
       
       // Yjs 문서 생성
       this.ydoc = new Y.Doc();
@@ -47,8 +50,8 @@ export class CollaborationManager {
       // 로컬 사용자 정보 설정
       this.awareness.setLocalStateField('user', {
         id: this.userId,
-        name: userInfo.name || userInfo.email || `사용자 ${this.userId.slice(0, 6)}`,
-        email: userInfo.email,
+        name: safeUserInfo.name || safeUserInfo.email || `사용자 ${this.userId.slice(0, 6)}`,
+        email: safeUserInfo.email,
         color: this.userColor,
         cursor: null,
         timestamp: Date.now()
