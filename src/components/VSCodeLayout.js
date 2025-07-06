@@ -761,8 +761,8 @@ class VSCodeLayout {
         // 실제 프로젝트 데이터로 트리 구조 생성
         const { FileTreeItem, TreeItemCollapsibleState } = await import('./TreeDataProvider.js');
         
-        // 프로젝트 루트 생성
-        const root = new FileTreeItem(currentProject.name, 'folder', TreeItemCollapsibleState.Expanded);
+        // 프로젝트 루트 생성 (루트로 표시)
+        const root = new FileTreeItem('루트', 'folder', TreeItemCollapsibleState.Expanded);
         
         // 폴더 구조 구축
         const folders = currentProject.folders || [];

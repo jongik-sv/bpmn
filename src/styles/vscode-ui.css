@@ -3,8 +3,40 @@
  * Implements VS Code-like Activity Bar and Explorer with design tokens
  */
 
-/* Import Codicons */
-@import "@vscode/codicons/dist/codicon.css";
+/* Import Codicons - CDN fallback */
+@import url('https://cdn.jsdelivr.net/npm/@vscode/codicons@0.0.36/dist/codicon.css');
+
+/* Codicons fallback if import fails */
+.codicon {
+  font-family: "codicon";
+  font-size: 16px;
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
+  text-decoration: none;
+  text-rendering: auto;
+  text-transform: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Codicon unicode fallbacks */
+.codicon-files::before { content: "📁"; }
+.codicon-search::before { content: "🔍"; }
+.codicon-source-control::before { content: "🌿"; }
+.codicon-debug-alt::before { content: "🐛"; }
+.codicon-extensions::before { content: "🧩"; }
+.codicon-account::before { content: "👤"; }
+.codicon-settings-gear::before { content: "⚙️"; }
+.codicon-new-file::before { content: "📄"; }
+.codicon-new-folder::before { content: "📁"; }
+.codicon-refresh::before { content: "🔄"; }
+.codicon-collapse-all::before { content: "⬇️"; }
+.codicon-folder::before { content: "📂"; }
+.codicon-close::before { content: "✖️"; }
 
 /* VS Code Design Tokens */
 :root {
