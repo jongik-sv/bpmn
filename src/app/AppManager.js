@@ -4,6 +4,7 @@ import { showSupabaseLoginModal } from '../components/SupabaseLoginModal.js';
 import { dbManager, updateFolder } from '../lib/database.js';
 import { BpmnEditor } from '../editor/BpmnEditor.js';
 import { rbacManager, hasPermission, getUserRoleInProject } from '../lib/rbac.js';
+import VSCodeLayout from '../components/VSCodeLayout.js';
 import '../components/ProjectMembersModal.js';
 
 /**
@@ -23,6 +24,9 @@ export class AppManager {
     
     // BPMN 에디터
     this.bpmnEditor = null;
+    
+    // VS Code 스타일 레이아웃
+    this.vscodeLayout = null;
     
     // 파일 트리 상태
     this.expandedFolders = new Set();
@@ -147,11 +151,19 @@ export class AppManager {
     // 프로젝트 이름 표시
     $('#current-project-name').text(project.name);
     
+    // VS Code 스타일 레이아웃 초기화
+    await this.initializeVSCodeLayout();
+    
     // BPMN 에디터 초기화
     await this.initializeBpmnEditor();
     
-    // 파일 트리 로드
-    this.loadFileTree();
+    // 파일 트리 로드 (VS Code Layout의 Explorer에서 처리)
+    if (this.vscodeLayout) {
+      await this.vscodeLayout.setupBPMNIntegration();
+    } else {
+      // 폴백: 기존 파일 트리 로드
+      this.loadFileTree();
+    }
   }
 
   // 인증 관련 메서드들
@@ -1130,6 +1142,59 @@ export class AppManager {
     }
   }
 
+  // VS Code 스타일 레이아웃 초기화
+  async initializeVSCodeLayout() {
+    try {
+      console.log('🎨 Initializing VS Code Layout...');
+      
+      // VS Code 레이아웃이 이미 있으면 재사용
+      if (this.vscodeLayout) {
+        console.log('✅ VS Code Layout already exists, updating project');
+        return true;
+      }
+      
+      // VS Code 레이아웃 컨테이너 찾기 - 에디터 페이지 내에서 교체
+      const editorPage = document.querySelector('#editor-page');
+      if (!editorPage) {
+        console.error('❌ Editor page not found');
+        return false;
+      }
+      
+      // 기존 에디터 레이아웃을 숨기고 VS Code 레이아웃으로 교체
+      const editorLayout = editorPage.querySelector('.editor-layout');
+      if (editorLayout) {
+        editorLayout.style.display = 'none';
+      }
+      
+      // VS Code 레이아웃용 컨테이너 생성
+      let vscodeContainer = document.querySelector('#vscode-layout-container');
+      if (!vscodeContainer) {
+        vscodeContainer = document.createElement('div');
+        vscodeContainer.id = 'vscode-layout-container';
+        vscodeContainer.style.cssText = 'width: 100%; height: 100vh; display: flex; position: relative;';
+        
+        // 에디터 페이지에 직접 추가
+        editorPage.appendChild(vscodeContainer);
+      }
+      
+      // VS Code 레이아웃 생성
+      this.vscodeLayout = new VSCodeLayout(vscodeContainer);
+      console.log('✅ VS Code Layout created');
+      
+      // BPMN 에디터와 통합 설정
+      if (this.bpmnEditor) {
+        await this.vscodeLayout.integrateBPMNEditor(this.bpmnEditor);
+      }
+      
+      console.log('🎉 VS Code Layout fully initialized');
+      return true;
+    } catch (error) {
+      console.error('❌ VS Code Layout initialization failed:', error);
+      this.showNotification('VS Code 레이아웃 초기화에 실패했습니다.', 'error');
+      return false;
+    }
+  }
+
   // BPMN 에디터 관련 메서드들
   async initializeBpmnEditor() {
     try {
@@ -1150,6 +1215,11 @@ export class AppManager {
       if (this.currentProject) {
         await this.bpmnEditor.setProject(this.currentProject);
         console.log('✅ Project set in BPMN Editor:', this.currentProject.name);
+      }
+      
+      // VS Code 레이아웃과 통합
+      if (this.vscodeLayout) {
+        await this.vscodeLayout.integrateBPMNEditor(this.bpmnEditor);
       }
       
       console.log('🎉 BPMN Editor fully initialized');

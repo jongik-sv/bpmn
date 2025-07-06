@@ -1,3 +1,6 @@
+/* Import VS Code UI styles */
+@import './vscode-ui.css';
+
 /* Reset and base styles */
 * {
   margin: 0;
