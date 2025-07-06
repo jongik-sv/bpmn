@@ -676,35 +676,52 @@ class VSCodeLayout {
         console.log('🔧 Integrating BPMN Editor...');
         console.log('📍 Editor content element:', editorContent);
         
-        // Clear any existing content
-        editorContent.innerHTML = '';
+        if (!editorContent) {
+            console.error('❌ Editor content container not found');
+            return;
+        }
         
-        // Move existing BPMN editor to the new layout
-        if (editorInstance && editorInstance.container) {
-            console.log('📦 BPMN Editor container type:', typeof editorInstance.container);
-            console.log('📦 BPMN Editor container:', editorInstance.container);
+        // BPMN 에디터가 있는 경우 통합
+        if (editorInstance) {
+            console.log('📦 BPMN Editor instance found:', editorInstance);
             
-            // Check if container is a valid DOM element
-            if (editorInstance.container instanceof HTMLElement) {
-                console.log('✅ Moving existing BPMN editor element');
-                editorContent.appendChild(editorInstance.container);
-            } else if (typeof editorInstance.container === 'string') {
-                // If it's a selector string, find the element
-                const containerElement = document.querySelector(editorInstance.container);
-                if (containerElement) {
-                    console.log('✅ Found BPMN editor by selector, moving element');
-                    editorContent.appendChild(containerElement);
-                } else {
-                    console.warn('❌ Could not find BPMN editor element with selector:', editorInstance.container);
-                    this.createPlaceholder(editorContent);
+            // 기존 플레이스홀더 제거
+            editorContent.innerHTML = '';
+            
+            // BPMN 에디터 컨테이너 생성
+            const bpmnContainer = document.createElement('div');
+            bpmnContainer.id = 'bpmn-editor-container';
+            bpmnContainer.style.cssText = `
+                width: 100%;
+                height: 100%;
+                position: relative;
+                background-color: #ffffff;
+                overflow: hidden;
+            `;
+            
+            editorContent.appendChild(bpmnContainer);
+            
+            // BPMN 에디터를 새 컨테이너에 재초기화
+            try {
+                console.log('🔧 Re-initializing BPMN editor in new container...');
+                
+                // 기존 에디터 파괴 후 새로 생성
+                if (editorInstance.modeler) {
+                    editorInstance.modeler.destroy();
                 }
-            } else {
-                console.warn('❌ BPMN Editor container is not a valid DOM element:', editorInstance.container);
+                
+                // 새 컨테이너에 BPMN 에디터 초기화
+                await editorInstance.initializeModeler(bpmnContainer);
+                
+                console.log('✅ BPMN editor successfully integrated');
+                
+            } catch (error) {
+                console.error('❌ Failed to re-initialize BPMN editor:', error);
                 this.createPlaceholder(editorContent);
             }
         } else {
-            console.log('📦 No BPMN editor instance provided, creating placeholder');
-            this.createPlaceholder(editorContent);
+            console.log('📦 No BPMN editor instance, creating ready container');
+            this.createReadyContainer(editorContent);
         }
         
         // Set up BPMN-specific explorer integration
@@ -726,6 +743,36 @@ class VSCodeLayout {
         `;
         placeholder.innerHTML = '<div class="editor-placeholder">BPMN 에디터를 로드하는 중...</div>';
         container.appendChild(placeholder);
+    }
+    
+    createReadyContainer(container) {
+        const readyContainer = document.createElement('div');
+        readyContainer.id = 'bpmn-editor-ready';
+        readyContainer.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #cccccc;
+            font-size: 14px;
+            text-align: center;
+            background-color: #1e1e1e;
+            padding: 40px;
+        `;
+        readyContainer.innerHTML = `
+            <div style="margin-bottom: 20px;">
+                <i style="font-size: 48px;">🎨</i>
+            </div>
+            <div style="font-weight: 500; margin-bottom: 16px; font-size: 18px;">
+                BPMN 에디터 준비 완료
+            </div>
+            <div style="color: #999999; line-height: 1.5; max-width: 400px;">
+                Explorer에서 BPMN 다이어그램을 더블클릭하거나<br>
+                새 다이어그램을 생성하여 편집을 시작하세요.
+            </div>
+        `;
+        container.appendChild(readyContainer);
     }
 
     async setupBPMNIntegration() {
@@ -884,9 +931,48 @@ class VSCodeLayout {
                 return;
             }
             
+            // BPMN 에디터가 초기화되지 않았다면 초기화
             if (!appManager.bpmnEditor) {
                 console.log('🔧 BPMN Editor not initialized, initializing...');
                 await appManager.initializeBpmnEditor();
+                
+                // VS Code 레이아웃에 다시 통합
+                if (appManager.bpmnEditor) {
+                    await this.integrateBPMNEditor(appManager.bpmnEditor);
+                }
+            }
+            
+            // 에디터 컨테이너 확인 및 준비
+            const editorContent = this.container.querySelector('.editor-content');
+            const readyContainer = editorContent?.querySelector('#bpmn-editor-ready');
+            const placeholderContainer = editorContent?.querySelector('#bpmn-editor-placeholder');
+            
+            // 준비 상태 메시지나 플레이스홀더가 있다면 제거하고 에디터 컨테이너 생성
+            if (readyContainer || placeholderContainer) {
+                console.log('🔧 Replacing ready/placeholder container with BPMN editor...');
+                
+                // 기존 컨테이너 제거
+                if (readyContainer) readyContainer.remove();
+                if (placeholderContainer) placeholderContainer.remove();
+                
+                // BPMN 에디터 컨테이너 생성
+                const bpmnContainer = document.createElement('div');
+                bpmnContainer.id = 'bpmn-editor-container';
+                bpmnContainer.style.cssText = `
+                    width: 100%;
+                    height: 100%;
+                    position: relative;
+                    background-color: #ffffff;
+                    overflow: hidden;
+                `;
+                
+                editorContent.appendChild(bpmnContainer);
+                
+                // BPMN 에디터를 새 컨테이너에 재초기화
+                if (appManager.bpmnEditor.modeler) {
+                    appManager.bpmnEditor.modeler.destroy();
+                }
+                await appManager.bpmnEditor.initializeModeler(bpmnContainer);
             }
             
             // 다이어그램 데이터로 BPMN 에디터에 로드
@@ -900,6 +986,8 @@ class VSCodeLayout {
             
         } catch (error) {
             console.error('❌ Failed to open BPMN diagram:', error);
+            // 에러 발생 시 사용자에게 알림
+            alert('다이어그램을 열 수 없습니다. 다시 시도해주세요.');
         }
     }
 

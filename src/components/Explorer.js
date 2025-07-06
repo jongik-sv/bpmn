@@ -754,11 +754,26 @@ class Explorer {
             const parent = parentFolder || this.selectedItem || this.dataProvider.root;
             console.log('📄 Creating new BPMN diagram in:', parent?.label || 'root');
             
-            // 파일 이름 입력받기
-            const fileName = prompt('새 다이어그램의 이름을 입력하세요:', 'new-diagram');
-            if (!fileName || !fileName.trim()) {
-                return;
-            }
+            // 파일 이름 입력받기 (중복 체크)
+            let fileName;
+            let attempt = 0;
+            do {
+                const defaultName = attempt === 0 ? 'new-diagram' : `new-diagram-${attempt}`;
+                fileName = prompt('새 다이어그램의 이름을 입력하세요:', defaultName);
+                
+                if (!fileName || !fileName.trim()) {
+                    return;
+                }
+                
+                fileName = fileName.trim();
+                
+                // 중복 확인
+                if (this.checkDuplicateName(fileName, 'diagram', parent)) {
+                    alert(`"${fileName}" 이름의 다이어그램이 이미 존재합니다. 다른 이름을 입력해주세요.`);
+                    attempt++;
+                    fileName = null; // 루프 계속
+                }
+            } while (!fileName && attempt < 10);
             
             // AppManager를 통해 다이어그램 생성
             const appManager = window.appManager;
@@ -835,11 +850,26 @@ class Explorer {
             const parent = parentFolder || this.selectedItem || this.dataProvider.root;
             console.log('📁 Creating new folder in:', parent?.label || 'root');
             
-            // 폴더 이름 입력받기
-            const folderName = prompt('새 폴더의 이름을 입력하세요:', 'new-folder');
-            if (!folderName || !folderName.trim()) {
-                return;
-            }
+            // 폴더 이름 입력받기 (중복 체크)
+            let folderName;
+            let attempt = 0;
+            do {
+                const defaultName = attempt === 0 ? 'new-folder' : `new-folder-${attempt}`;
+                folderName = prompt('새 폴더의 이름을 입력하세요:', defaultName);
+                
+                if (!folderName || !folderName.trim()) {
+                    return;
+                }
+                
+                folderName = folderName.trim();
+                
+                // 중복 확인
+                if (this.checkDuplicateName(folderName, 'folder', parent)) {
+                    alert(`"${folderName}" 이름의 폴더가 이미 존재합니다. 다른 이름을 입력해주세요.`);
+                    attempt++;
+                    folderName = null; // 루프 계속
+                }
+            } while (!folderName && attempt < 10);
             
             // AppManager를 통해 폴더 생성
             const appManager = window.appManager;
@@ -907,6 +937,40 @@ class Explorer {
             
         } catch (error) {
             console.error('❌ Failed to refresh project data:', error);
+        }
+    }
+    
+    checkDuplicateName(name, type, parentItem) {
+        try {
+            const appManager = window.appManager;
+            if (!appManager || !appManager.currentProject) {
+                return false;
+            }
+            
+            const { folders, diagrams } = appManager.currentProject;
+            
+            // 부모 폴더 ID 확인
+            let parentId = null;
+            if (parentItem && parentItem.folderId) {
+                parentId = parentItem.folderId;
+            }
+            
+            if (type === 'folder') {
+                // 같은 부모 폴더 내에서 중복 폴더명 확인
+                return folders.some(folder => 
+                    folder.name === name && folder.parent_id === parentId
+                );
+            } else if (type === 'diagram') {
+                // 같은 폴더 내에서 중복 다이어그램명 확인
+                return diagrams.some(diagram => 
+                    diagram.name === name && diagram.folder_id === parentId
+                );
+            }
+            
+            return false;
+        } catch (error) {
+            console.error('❌ Error checking duplicate name:', error);
+            return false;
         }
     }
 
