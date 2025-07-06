@@ -72,14 +72,25 @@ class ActivityBar {
                  aria-pressed="${activity.id === this.activeView}"
                  title="${activity.title}"
                  style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; color: ${activity.id === this.activeView ? '#ffffff' : '#999999'}; transition: color 0.1s ease; border: none; background: none; outline: none; ${activity.id === this.activeView ? 'border-left: 2px solid #ffffff;' : ''}">
-                <div class="activity-bar-icon" style="font-size: 16px; line-height: 1;">
-                    <i class="codicon ${activity.icon}" aria-hidden="true"></i>
+                <div class="activity-bar-icon" style="font-size: 18px; line-height: 1; color: inherit;">
+                    ${this.getActivityIcon(activity.id)}
                 </div>
                 <div class="activity-bar-badge" style="display: none; position: absolute; top: 8px; right: 8px; min-width: 16px; height: 16px; border-radius: 8px; background-color: #007acc; color: #ffffff; font-size: 9px; font-weight: 600; display: flex; align-items: center; justify-content: center; padding: 0 4px; box-sizing: border-box;">
                     <span class="badge-content">3</span>
                 </div>
             </div>
         `).join('');
+    }
+    
+    getActivityIcon(activityId) {
+        const iconMap = {
+            'explorer': '📁',
+            'search': '🔍', 
+            'source-control': '🌿',
+            'run-debug': '🐛',
+            'extensions': '🧩'
+        };
+        return iconMap[activityId] || '❓';
     }
 
     renderBottomActions() {
@@ -91,7 +102,7 @@ class ActivityBar {
                  aria-label="계정 관리"
                  title="계정 관리">
                 <div class="activity-bar-icon" style="font-size: 16px; line-height: 1;">
-                    <i class="codicon codicon-account" aria-hidden="true"></i>
+                    👤
                 </div>
             </div>
             <div class="activity-bar-item" 
@@ -101,7 +112,7 @@ class ActivityBar {
                  aria-label="설정 관리"
                  title="설정 관리 (Ctrl+,)">
                 <div class="activity-bar-icon" style="font-size: 16px; line-height: 1;">
-                    <i class="codicon codicon-settings-gear" aria-hidden="true"></i>
+                    ⚙️
                 </div>
             </div>
         `;

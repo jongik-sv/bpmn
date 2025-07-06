@@ -67,17 +67,17 @@ class Explorer {
                     <div class="explorer-title" style="display: flex; justify-content: space-between; align-items: center;">
                         <h3 style="margin: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #cccccc; letter-spacing: 1px;">탐색기</h3>
                         <div class="explorer-actions" style="display: flex; gap: 4px;">
-                            <button class="action-button" title="새 다이어그램 (BPMN 파일)" data-action="new-file" style="width: 22px; height: 22px; border: none; background: none; color: #cccccc; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 3px;">
-                                <i class="codicon codicon-new-file" style="font-size: 16px;"></i>
+                            <button class="action-button" title="새 다이어그램 (BPMN 파일)" data-action="new-file" style="width: 24px; height: 24px; border: 1px solid #555; background-color: #404040; color: #ffffff; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-size: 14px;">
+                                📄
                             </button>
-                            <button class="action-button" title="새 폴더" data-action="new-folder" style="width: 22px; height: 22px; border: none; background: none; color: #cccccc; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 3px;">
-                                <i class="codicon codicon-new-folder" style="font-size: 16px;"></i>
+                            <button class="action-button" title="새 폴더" data-action="new-folder" style="width: 24px; height: 24px; border: 1px solid #555; background-color: #404040; color: #ffffff; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-size: 14px;">
+                                📁
                             </button>
-                            <button class="action-button" title="새로 고침" data-action="refresh" style="width: 22px; height: 22px; border: none; background: none; color: #cccccc; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 3px;">
-                                <i class="codicon codicon-refresh" style="font-size: 16px;"></i>
+                            <button class="action-button" title="새로 고침" data-action="refresh" style="width: 24px; height: 24px; border: 1px solid #555; background-color: #404040; color: #ffffff; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-size: 14px;">
+                                🔄
                             </button>
-                            <button class="action-button" title="모두 축소" data-action="collapse-all" style="width: 22px; height: 22px; border: none; background: none; color: #cccccc; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 3px;">
-                                <i class="codicon codicon-collapse-all" style="font-size: 16px;"></i>
+                            <button class="action-button" title="모두 축소" data-action="collapse-all" style="width: 24px; height: 24px; border: 1px solid #555; background-color: #404040; color: #ffffff; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-size: 14px;">
+                                ⬇️
                             </button>
                         </div>
                     </div>

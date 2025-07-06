@@ -38,6 +38,17 @@
 .codicon-folder::before { content: "📂"; }
 .codicon-close::before { content: "✖️"; }
 
+/* Explorer action buttons */
+.action-button {
+  transition: all 0.2s ease;
+}
+
+.action-button:hover {
+  background-color: #505050 !important;
+  border-color: #666 !important;
+  transform: scale(1.05);
+}
+
 /* VS Code Design Tokens */
 :root {
   /* VS Code Color Palette */
