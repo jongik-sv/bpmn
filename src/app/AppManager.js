@@ -157,8 +157,10 @@ export class AppManager {
     // BPMN 에디터 초기화
     await this.initializeBpmnEditor();
     
-    // 파일 트리 로드 (VS Code Layout의 Explorer에서 처리)
+    // 파일 트리 로드 (VS Code Layout에서 실제 데이터 사용)
     if (this.vscodeLayout) {
+      // 먼저 프로젝트 데이터를 로드한 다음 VS Code Layout에 반영
+      await this.loadProjectData();
       await this.vscodeLayout.setupBPMNIntegration();
     } else {
       // 폴백: 기존 파일 트리 로드
@@ -1192,6 +1194,44 @@ export class AppManager {
       console.error('❌ VS Code Layout initialization failed:', error);
       this.showNotification('VS Code 레이아웃 초기화에 실패했습니다.', 'error');
       return false;
+    }
+  }
+
+  // 프로젝트 데이터 로드
+  async loadProjectData() {
+    if (!this.currentProject) {
+      console.warn('❌ No current project to load data for');
+      return;
+    }
+
+    try {
+      console.log('📊 Loading project data for:', this.currentProject.id);
+      
+      // 프로젝트의 폴더와 다이어그램 병렬 로드
+      const [foldersResult, diagramsResult] = await Promise.all([
+        dbManager.getProjectFolders(this.currentProject.id).catch(err => {
+          console.error('Failed to load folders:', err);
+          return { data: [], error: err };
+        }),
+        dbManager.getProjectDiagrams(this.currentProject.id).catch(err => {
+          console.error('Failed to load diagrams:', err);
+          return { data: [], error: err };
+        })
+      ]);
+      
+      console.log('📁 Folders result:', foldersResult);
+      console.log('📄 Diagrams result:', diagramsResult);
+      
+      // 프로젝트 객체에 데이터 저장
+      this.currentProject.folders = foldersResult.data || [];
+      this.currentProject.diagrams = diagramsResult.data || [];
+      
+      console.log(`✅ Loaded ${this.currentProject.folders.length} folders and ${this.currentProject.diagrams.length} diagrams`);
+      
+    } catch (error) {
+      console.error('❌ Failed to load project data:', error);
+      this.currentProject.folders = [];
+      this.currentProject.diagrams = [];
     }
   }
 

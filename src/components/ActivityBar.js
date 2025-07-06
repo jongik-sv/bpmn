@@ -10,31 +10,31 @@ class ActivityBar {
             {
                 id: 'explorer',
                 title: '탐색기 (Ctrl+Shift+E)',
-                icon: '📁',
+                icon: 'codicon-files',
                 shortcut: 'Ctrl+Shift+E'
             },
             {
                 id: 'search',
                 title: '검색 (Ctrl+Shift+F)',
-                icon: '🔍',
+                icon: 'codicon-search',
                 shortcut: 'Ctrl+Shift+F'
             },
             {
                 id: 'source-control',
                 title: '소스 제어 (Ctrl+Shift+G)',
-                icon: '🌿',
+                icon: 'codicon-source-control',
                 shortcut: 'Ctrl+Shift+G'
             },
             {
                 id: 'run-debug',
                 title: '실행 및 디버그 (Ctrl+Shift+D)',
-                icon: '🐛',
+                icon: 'codicon-debug-alt',
                 shortcut: 'Ctrl+Shift+D'
             },
             {
                 id: 'extensions',
                 title: '확장 (Ctrl+Shift+X)',
-                icon: '🧩',
+                icon: 'codicon-extensions',
                 shortcut: 'Ctrl+Shift+X'
             }
         ];
@@ -72,8 +72,8 @@ class ActivityBar {
                  aria-pressed="${activity.id === this.activeView}"
                  title="${activity.title}"
                  style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; color: ${activity.id === this.activeView ? '#ffffff' : '#999999'}; transition: color 0.1s ease; border: none; background: none; outline: none; ${activity.id === this.activeView ? 'border-left: 2px solid #ffffff;' : ''}">
-                <div class="activity-bar-icon" style="font-size: 20px; line-height: 1;">
-                    ${activity.icon}
+                <div class="activity-bar-icon" style="font-size: 16px; line-height: 1;">
+                    <i class="codicon ${activity.icon}" aria-hidden="true"></i>
                 </div>
                 <div class="activity-bar-badge" style="display: none; position: absolute; top: 8px; right: 8px; min-width: 16px; height: 16px; border-radius: 8px; background-color: #007acc; color: #ffffff; font-size: 9px; font-weight: 600; display: flex; align-items: center; justify-content: center; padding: 0 4px; box-sizing: border-box;">
                     <span class="badge-content">3</span>
@@ -90,7 +90,7 @@ class ActivityBar {
                  tabindex="0"
                  aria-label="계정 관리"
                  title="계정 관리">
-                <div class="activity-bar-icon">
+                <div class="activity-bar-icon" style="font-size: 16px; line-height: 1;">
                     <i class="codicon codicon-account" aria-hidden="true"></i>
                 </div>
             </div>
@@ -100,7 +100,7 @@ class ActivityBar {
                  tabindex="0"
                  aria-label="설정 관리"
                  title="설정 관리 (Ctrl+,)">
-                <div class="activity-bar-icon">
+                <div class="activity-bar-icon" style="font-size: 16px; line-height: 1;">
                     <i class="codicon codicon-settings-gear" aria-hidden="true"></i>
                 </div>
             </div>

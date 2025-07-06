@@ -744,32 +744,163 @@ class VSCodeLayout {
     }
 
     async createBPMNProjectStructure(dataProvider) {
-        // This would create a project structure suitable for BPMN files
-        console.log('Setting up BPMN project structure');
+        console.log('🔧 Setting up real BPMN project structure');
         
-        // Example: Add sample BPMN files to the tree
-        const root = dataProvider.root;
-        if (root) {
-            // Import FileTreeItem locally
-            const { FileTreeItem } = await import('./TreeDataProvider.js');
-            const bpmnFolder = root.children.find(child => child.label === 'diagrams') || 
-                             root.addChild(new FileTreeItem('diagrams', 'folder', 1));
-            
-            // Add sample BPMN files
-            bpmnFolder.addChild(new FileTreeItem('process.bpmn', 'file'));
-            bpmnFolder.addChild(new FileTreeItem('collaboration.bpmn', 'file'));
-            
-            dataProvider.refresh();
+        // AppManager 인스턴스 가져오기
+        const appManager = window.appManager;
+        if (!appManager || !appManager.currentProject) {
+            console.warn('❌ No AppManager or current project found');
+            return;
         }
+        
+        const { currentProject } = appManager;
+        console.log('📁 Loading project:', currentProject.name);
+        console.log('📊 Folders:', currentProject.folders?.length || 0);
+        console.log('📄 Diagrams:', currentProject.diagrams?.length || 0);
+        
+        // 실제 프로젝트 데이터로 트리 구조 생성
+        const { FileTreeItem, TreeItemCollapsibleState } = await import('./TreeDataProvider.js');
+        
+        // 프로젝트 루트 생성
+        const root = new FileTreeItem(currentProject.name, 'folder', TreeItemCollapsibleState.Expanded);
+        
+        // 폴더 구조 구축
+        const folders = currentProject.folders || [];
+        const diagrams = currentProject.diagrams || [];
+        
+        // 루트 폴더들 (parent_id가 null인 폴더들)
+        const rootFolders = folders.filter(folder => !folder.parent_id);
+        // 루트 다이어그램들 (folder_id가 null인 다이어그램들) 
+        const rootDiagrams = diagrams.filter(diagram => !diagram.folder_id);
+        
+        // 폴더들을 트리에 추가 (재귀적으로)
+        for (const folder of rootFolders) {
+            const folderItem = await this.createFolderTreeItem(folder, folders, diagrams);
+            root.addChild(folderItem);
+        }
+        
+        // 루트 다이어그램들 추가
+        for (const diagram of rootDiagrams) {
+            const diagramItem = await this.createDiagramTreeItem(diagram);
+            root.addChild(diagramItem);
+        }
+        
+        // 데이터 프로바이더에 루트 설정
+        dataProvider.setRoot(root);
+        
+        console.log('✅ Real BPMN project structure created');
+    }
+    
+    async createFolderTreeItem(folder, allFolders, allDiagrams) {
+        const { FileTreeItem, TreeItemCollapsibleState } = await import('./TreeDataProvider.js');
+        
+        // 폴더 아이템 생성
+        const folderItem = new FileTreeItem(
+            folder.name, 
+            'folder', 
+            TreeItemCollapsibleState.Expanded
+        );
+        
+        // 메타데이터 추가
+        folderItem.id = `folder-${folder.id}`;
+        folderItem.folderId = folder.id;
+        folderItem.description = folder.description;
+        folderItem.tooltip = `폴더: ${folder.name}`;
+        
+        // 하위 폴더들 찾기
+        const childFolders = allFolders.filter(f => f.parent_id === folder.id);
+        for (const childFolder of childFolders) {
+            const childItem = await this.createFolderTreeItem(childFolder, allFolders, allDiagrams);
+            folderItem.addChild(childItem);
+        }
+        
+        // 이 폴더 내의 다이어그램들 찾기
+        const folderDiagrams = allDiagrams.filter(d => d.folder_id === folder.id);
+        for (const diagram of folderDiagrams) {
+            const diagramItem = await this.createDiagramTreeItem(diagram);
+            folderItem.addChild(diagramItem);
+        }
+        
+        return folderItem;
+    }
+    
+    async createDiagramTreeItem(diagram) {
+        const { FileTreeItem } = await import('./TreeDataProvider.js');
+        
+        // 다이어그램 아이템 생성
+        const diagramItem = new FileTreeItem(`${diagram.name}.bpmn`, 'file');
+        
+        // 메타데이터 추가
+        diagramItem.id = `diagram-${diagram.id}`;
+        diagramItem.diagramId = diagram.id;
+        diagramItem.diagramData = diagram;
+        diagramItem.tooltip = `BPMN 다이어그램: ${diagram.name}`;
+        diagramItem.description = diagram.description;
+        diagramItem.resourceUri = `bpmn://${diagram.id}`;
+        
+        // 마지막 수정 시간 설정
+        if (diagram.updated_at) {
+            diagramItem.lastModified = new Date(diagram.updated_at);
+        }
+        
+        return diagramItem;
     }
 
     setupBPMNFileAssociations() {
+        console.log('🔧 Setting up BPMN file associations');
+        
         // Set up file type associations for BPMN files
         this.explorer.setOnItemDoubleClick((item, event) => {
-            if (item.extension === 'bpmn') {
-                this.loadBPMNFile(item, this.container.querySelector('.editor-content'));
+            console.log('📂 Double-clicked item:', item.label, 'type:', item.type);
+            
+            if (item.type === 'file' && item.diagramId) {
+                console.log('🎯 Opening BPMN diagram:', item.diagramId);
+                this.openBPMNDiagram(item);
             }
         });
+        
+        // Single click selection feedback
+        this.explorer.setOnItemClick((item, event) => {
+            console.log('👆 Clicked item:', item.label);
+            if (item.type === 'file' && item.diagramData) {
+                // Show diagram info in status or somewhere
+                console.log('📊 Diagram info:', {
+                    name: item.diagramData.name,
+                    created: item.diagramData.created_at,
+                    modified: item.diagramData.updated_at
+                });
+            }
+        });
+    }
+    
+    async openBPMNDiagram(item) {
+        try {
+            console.log('🔧 Opening BPMN diagram:', item.diagramData);
+            
+            // AppManager를 통해 다이어그램 열기
+            const appManager = window.appManager;
+            if (!appManager) {
+                console.error('❌ AppManager not found');
+                return;
+            }
+            
+            if (!appManager.bpmnEditor) {
+                console.log('🔧 BPMN Editor not initialized, initializing...');
+                await appManager.initializeBpmnEditor();
+            }
+            
+            // 다이어그램 데이터로 BPMN 에디터에 로드
+            await appManager.bpmnEditor.openDiagram({
+                id: item.diagramData.id,
+                name: item.diagramData.name,
+                content: item.diagramData.bpmn_xml
+            });
+            
+            console.log('✅ BPMN diagram opened successfully:', item.diagramData.name);
+            
+        } catch (error) {
+            console.error('❌ Failed to open BPMN diagram:', error);
+        }
     }
 
     // Cleanup
