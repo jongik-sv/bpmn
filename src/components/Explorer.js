@@ -67,7 +67,7 @@ class Explorer {
                     <div class="explorer-title" style="display: flex; justify-content: space-between; align-items: center;">
                         <h3 style="margin: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #cccccc; letter-spacing: 1px;">탐색기</h3>
                         <div class="explorer-actions" style="display: flex; gap: 4px;">
-                            <button class="action-button" title="새 파일" data-action="new-file" style="width: 22px; height: 22px; border: none; background: none; color: #cccccc; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 3px;">
+                            <button class="action-button" title="새 다이어그램 (BPMN 파일)" data-action="new-file" style="width: 22px; height: 22px; border: none; background: none; color: #cccccc; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 3px;">
                                 <i class="codicon codicon-new-file" style="font-size: 16px;"></i>
                             </button>
                             <button class="action-button" title="새 폴더" data-action="new-folder" style="width: 22px; height: 22px; border: none; background: none; color: #cccccc; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 3px;">
@@ -131,7 +131,21 @@ class Explorer {
         console.log('🌲 Visible nodes:', visibleNodes.length, visibleNodes);
         
         if (visibleNodes.length === 0) {
-            return '<div style="padding: 16px; color: #999999;">파일이 없습니다.</div>';
+            return `
+                <div style="padding: 16px; color: #999999; text-align: center;">
+                    <div style="margin-bottom: 12px;">
+                        <i class="codicon codicon-folder" style="font-size: 32px; color: #666;"></i>
+                    </div>
+                    <div style="margin-bottom: 8px; font-weight: 500;">파일이 없습니다</div>
+                    <div style="font-size: 12px; line-height: 1.4; margin-bottom: 12px;">
+                        새 폴더나 다이어그램을 만들어보세요
+                    </div>
+                    <div style="font-size: 11px; color: #666;">
+                        • 📄 새 다이어그램: 헤더의 + 버튼 클릭<br>
+                        • 📁 새 폴더: 헤더의 폴더 버튼 클릭
+                    </div>
+                </div>
+            `;
         }
         
         const html = visibleNodes.map(node => {
@@ -500,7 +514,7 @@ class Explorer {
                 this.createNewFolder();
                 break;
             case 'refresh':
-                this.refresh();
+                this.refreshProjectData();
                 break;
             case 'collapse-all':
                 this.collapseAll();
@@ -735,19 +749,164 @@ class Explorer {
         this.refreshTree();
     }
 
-    createNewFile(parentFolder = null) {
-        const parent = parentFolder || this.selectedItem || this.dataProvider.root;
-        if (parent && parent.type === 'folder') {
-            // Implement file creation logic
-            console.log('Creating new file in:', parent.label);
+    async createNewFile(parentFolder = null) {
+        try {
+            const parent = parentFolder || this.selectedItem || this.dataProvider.root;
+            console.log('📄 Creating new BPMN diagram in:', parent?.label || 'root');
+            
+            // 파일 이름 입력받기
+            const fileName = prompt('새 다이어그램의 이름을 입력하세요:', 'new-diagram');
+            if (!fileName || !fileName.trim()) {
+                return;
+            }
+            
+            // AppManager를 통해 다이어그램 생성
+            const appManager = window.appManager;
+            if (!appManager || !appManager.currentProject) {
+                console.error('❌ AppManager or current project not found');
+                return;
+            }
+            
+            // 부모 폴더 ID 확인
+            let folderId = null;
+            if (parent && parent.folderId) {
+                folderId = parent.folderId;
+            }
+            
+            console.log('🔧 Creating diagram with folderId:', folderId);
+            
+            // 다이어그램 생성 (AppManager의 기존 로직 사용)
+            const { dbManager } = await import('../lib/database.js');
+            
+            const diagramData = {
+                name: fileName.trim(),
+                project_id: appManager.currentProject.id,
+                folder_id: folderId,
+                bpmn_xml: `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  id="Definitions_${Date.now()}" 
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_${Date.now()}" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1"/>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_${Date.now()}">
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="179" y="99" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>`,
+                created_by: appManager.currentUser?.id
+            };
+            
+            const result = await dbManager.createDiagram(diagramData);
+            
+            if (result.error) {
+                console.error('❌ Failed to create diagram:', result.error);
+                alert('다이어그램 생성에 실패했습니다.');
+                return;
+            }
+            
+            console.log('✅ Diagram created successfully:', result.data);
+            
+            // 프로젝트 데이터 새로고침 후 트리 업데이트
+            await this.refreshProjectData();
+            
+            // 생성된 다이어그램 자동으로 열기
+            if (appManager.bpmnEditor && result.data) {
+                await appManager.bpmnEditor.openDiagram({
+                    id: result.data.id,
+                    name: result.data.name,
+                    content: result.data.bpmn_xml
+                });
+            }
+            
+        } catch (error) {
+            console.error('❌ Error creating file:', error);
+            alert('다이어그램 생성 중 오류가 발생했습니다.');
         }
     }
 
-    createNewFolder(parentFolder = null) {
-        const parent = parentFolder || this.selectedItem || this.dataProvider.root;
-        if (parent && parent.type === 'folder') {
-            // Implement folder creation logic
-            console.log('Creating new folder in:', parent.label);
+    async createNewFolder(parentFolder = null) {
+        try {
+            const parent = parentFolder || this.selectedItem || this.dataProvider.root;
+            console.log('📁 Creating new folder in:', parent?.label || 'root');
+            
+            // 폴더 이름 입력받기
+            const folderName = prompt('새 폴더의 이름을 입력하세요:', 'new-folder');
+            if (!folderName || !folderName.trim()) {
+                return;
+            }
+            
+            // AppManager를 통해 폴더 생성
+            const appManager = window.appManager;
+            if (!appManager || !appManager.currentProject) {
+                console.error('❌ AppManager or current project not found');
+                return;
+            }
+            
+            // 부모 폴더 ID 확인
+            let parentId = null;
+            if (parent && parent.folderId) {
+                parentId = parent.folderId;
+            }
+            
+            console.log('🔧 Creating folder with parentId:', parentId);
+            
+            // 폴더 생성
+            const { dbManager } = await import('../lib/database.js');
+            
+            const folderData = {
+                name: folderName.trim(),
+                project_id: appManager.currentProject.id,
+                parent_id: parentId,
+                created_by: appManager.currentUser?.id
+            };
+            
+            const result = await dbManager.createFolder(folderData);
+            
+            if (result.error) {
+                console.error('❌ Failed to create folder:', result.error);
+                alert('폴더 생성에 실패했습니다.');
+                return;
+            }
+            
+            console.log('✅ Folder created successfully:', result.data);
+            
+            // 프로젝트 데이터 새로고침 후 트리 업데이트
+            await this.refreshProjectData();
+            
+        } catch (error) {
+            console.error('❌ Error creating folder:', error);
+            alert('폴더 생성 중 오류가 발생했습니다.');
+        }
+    }
+    
+    async refreshProjectData() {
+        try {
+            console.log('🔄 Refreshing project data...');
+            
+            const appManager = window.appManager;
+            if (!appManager) {
+                console.error('❌ AppManager not found');
+                return;
+            }
+            
+            // AppManager의 loadProjectData를 호출하여 최신 데이터 로드
+            await appManager.loadProjectData();
+            
+            // VSCodeLayout의 BPMN 프로젝트 구조 재생성
+            if (appManager.vscodeLayout) {
+                await appManager.vscodeLayout.setupBPMNIntegration();
+            }
+            
+            console.log('✅ Project data refreshed');
+            
+        } catch (error) {
+            console.error('❌ Failed to refresh project data:', error);
         }
     }
 
