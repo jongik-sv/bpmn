@@ -157,8 +157,8 @@ export class AppManager {
     // VS Code 스타일 레이아웃 초기화
     await this.initializeVSCodeLayout();
     
-    // BPMN 에디터 초기화
-    await this.initializeBpmnEditor();
+    // BPMN 에디터는 문서 선택 시에만 초기화 (지연 초기화)
+    // await this.initializeBpmnEditor(); // 제거됨
     
     // 파일 트리 로드 (VS Code Layout에서 실제 데이터 사용)
     if (this.vscodeLayout) {
@@ -181,20 +181,41 @@ export class AppManager {
       this.bpmnEditor.setUser(user);
     }
     
-    this.showDashboard();
+    // 현재 페이지가 에디터인 경우 대시보드로 이동하지 않음
+    if (this.currentPage !== 'editor') {
+      this.showDashboard();
+    } else {
+      console.log('⏭️ User signed in but staying on editor page');
+    }
   }
 
   onUserSignedOut() {
-    console.log('User signed out');
-    this.currentUser = null;
-    this.currentProject = null;
+    console.log('User signed out event detected');
     
-    // BPMN 에디터에서 사용자 제거
-    if (this.bpmnEditor) {
-      this.bpmnEditor.setUser(null);
-    }
-    
-    this.showLanding();
+    // 짧은 지연 후 실제 사용자 상태를 다시 확인
+    // 탭 전환 시 발생하는 임시적인 인증 상태 변경을 방지
+    setTimeout(async () => {
+      const { getCurrentUser } = await import('./lib/supabase.js');
+      const currentUser = await getCurrentUser();
+      
+      if (!currentUser) {
+        // 실제로 로그아웃된 경우에만 처리
+        console.log('✅ Confirmed user signed out - redirecting to landing');
+        this.currentUser = null;
+        this.currentProject = null;
+        
+        // BPMN 에디터에서 사용자 제거
+        if (this.bpmnEditor) {
+          this.bpmnEditor.setUser(null);
+        }
+        
+        this.showLanding();
+      } else {
+        // 임시적인 상태 변경인 경우 무시
+        console.log('⏭️ Temporary auth state change - keeping current page');
+        this.currentUser = currentUser;
+      }
+    }, 500); // 500ms 지연으로 상태 안정화 대기
   }
 
   showLoginModal(mode = 'login') {
@@ -1358,10 +1379,10 @@ export class AppManager {
         return;
       }
 
-      // BPMN 에디터 초기화
-      if (!this.bpmnEditor) {
-        this.initializeBpmnEditor();
-      }
+      // BPMN 에디터는 VSCodeLayout에서 처리 (지연 초기화)
+      // if (!this.bpmnEditor) {
+      //   this.initializeBpmnEditor();
+      // }
       
       // 다이어그램 열기
       await this.bpmnEditor.openDiagram({
@@ -1436,11 +1457,12 @@ export class AppManager {
   }
 
   openNewDiagram() {
-    if (!this.bpmnEditor) {
-      this.initializeBpmnEditor();
+    // 새 다이어그램은 VSCodeLayout에서 처리 (지연 초기화)
+    console.log('📄 Creating new diagram via VSCodeLayout...');
+    if (this.vscodeLayout) {
+      // VSCodeLayout의 새 다이어그램 생성 기능 호출
+      // this.vscodeLayout.createNewDiagram();
     }
-    
-    this.bpmnEditor.createNewDiagram();
   }
 
   // 이 메서드는 위의 async openDiagram과 중복되므로 제거

@@ -150,8 +150,9 @@ export class BpmnEditor {
    */
   async setUser(user) {
     this.currentUser = user;
-    
-    if (user && !this.collaborationModule) {
+
+    // Initialize collaboration only if the modeler has been initialized
+    if (user && this.modeler && !this.collaborationModule) {
       await this.initializeCollaboration(user);
     } else if (!user && this.collaborationModule) {
       this.collaborationModule.disconnect();
@@ -166,9 +167,9 @@ export class BpmnEditor {
     this.currentProject = project;
     
     // 기본 다이어그램 먼저 로드
-    if (!this.currentDiagram) {
-      await this.createNewDiagram();
-    }
+    // if (!this.currentDiagram) {
+    //   await this.createNewDiagram();
+    // }
     
     // 협업 룸 ID 업데이트
     if (this.collaborationModule && project) {
@@ -552,6 +553,11 @@ export class BpmnEditor {
         this.exportArtifacts();
         this.debouncedAutoSave(); // 디바운스 적용된 자동 저장 사용
       });
+
+      // If a user is already logged in, initialize collaboration
+      if (this.currentUser && !this.collaborationModule) {
+        this.initializeCollaboration(this.currentUser);
+      }
       
       console.log('✅ BPMN Modeler initialized successfully');
     } catch (error) {

@@ -985,95 +985,65 @@ class VSCodeLayout {
     
     async openBPMNDiagram(item) {
         try {
-            console.log('🔧 Opening BPMN diagram:', item.diagramData);
-            
-            // AppManager를 통해 다이어그램 열기
             const appManager = window.appManager;
             if (!appManager) {
                 console.error('❌ AppManager not found');
                 return;
             }
+
+            const diagram = item.diagramData;
+            if (!diagram) {
+                console.error('❌ Diagram data not found in the clicked item.');
+                return;
+            }
             
+            console.log('🔧 Opening BPMN diagram:', diagram);
+
+            // BPMN XML 콘텐츠 가져오기
+            let bpmnXml = diagram.bpmn_xml;
+            if (!bpmnXml) {
+                console.log('📜 BPMN XML not found locally, fetching from database...');
+                const { dbManager } = await import('../lib/database.js');
+                const result = await dbManager.getDiagram(diagram.id);
+                
+                if (result.data && result.data.bpmn_xml) {
+                    bpmnXml = result.data.bpmn_xml;
+                    diagram.bpmn_xml = bpmnXml; // 나중을 위해 캐시
+                    console.log('✅ Fetched and cached BPMN XML from database');
+                } else {
+                    console.warn('⚠️ Failed to fetch BPMN XML from database. Loading default diagram.');
+                    const { default: newDiagramXML } = await import('../assets/newDiagram.bpmn');
+                    bpmnXml = newDiagramXML;
+                }
+            }
+
             // BPMN 에디터가 초기화되지 않았다면 초기화
-            if (!appManager.bpmnEditor) {
+            if (!appManager.bpmnEditor || !appManager.bpmnEditor.isInitialized) {
                 console.log('🔧 BPMN Editor not initialized, initializing...');
                 await appManager.initializeBpmnEditor();
-                
-                // VS Code 레이아웃에 다시 통합
                 if (appManager.bpmnEditor) {
                     await this.integrateBPMNEditor(appManager.bpmnEditor);
                 }
             }
             
-            // BPMN 에디터가 아직 실제로 초기화되지 않았다면 지금 초기화
-            if (appManager.bpmnEditor && !appManager.bpmnEditor.isInitialized) {
-                console.log('🔧 BPMN Editor instance exists but not initialized, initializing now...');
-                await appManager.bpmnEditor.initializeWhenReady();
-                console.log('✅ BPMN Editor initialized on first document selection');
-            }
-            
-            // 에디터 컨테이너 확인 및 준비
+            // 에디터 컨테이너 준비
             const editorContent = this.container.querySelector('.editor-content');
             const welcomeMessage = editorContent?.querySelector('.editor-welcome-message');
-            const readyContainer = editorContent?.querySelector('#bpmn-editor-ready');
-            const placeholderContainer = editorContent?.querySelector('#bpmn-editor-placeholder');
-            
-            // 웰컴 메시지나 기존 컨테이너가 있다면 제거하고 에디터 컨테이너 생성
-            if (welcomeMessage || readyContainer || placeholderContainer) {
-                console.log('🔧 Replacing welcome/ready/placeholder container with BPMN editor...');
-                
-                // 기존 컨테이너 제거
-                if (welcomeMessage) welcomeMessage.remove();
-                if (readyContainer) readyContainer.remove();
-                if (placeholderContainer) placeholderContainer.remove();
-                
-                // BPMN 에디터 컨테이너 생성
-                const bpmnContainer = document.createElement('div');
-                bpmnContainer.id = 'bpmn-editor-container';
-                bpmnContainer.style.cssText = `
-                    width: 100%;
-                    height: 100%;
-                    position: relative;
-                    background-color: #ffffff;
-                    overflow: hidden;
-                `;
-                
-                editorContent.appendChild(bpmnContainer);
-                
-                // BPMN 에디터를 새 컨테이너에 재초기화
-                if (appManager.bpmnEditor.modeler) {
-                    appManager.bpmnEditor.modeler.destroy();
-                }
-                await appManager.bpmnEditor.initializeModeler(bpmnContainer);
-                
-                // 다이어그램 데이터로 BPMN 에디터에 로드
-                await appManager.bpmnEditor.openDiagram({
-                    id: item.diagramData.id,
-                    name: item.diagramData.name,
-                    content: item.diagramData.bpmn_xml
-                });
-            } else {
-                // 이미 BPMN 에디터가 존재하는 경우 직접 다이어그램 로드
-                console.log('🔧 Using existing BPMN editor container');
-                
-                // 협업 모듈 재초기화 (프로젝트/다이어그램 변경 시)
-                if (appManager.bpmnEditor.collaborationModule && appManager.currentProject) {
-                    const newRoomId = `project-${appManager.currentProject.id}-diagram-${item.diagramData.id}`;
-                    await appManager.bpmnEditor.changeCollaborationRoom(newRoomId);
-                }
-                
-                await appManager.bpmnEditor.openDiagram({
-                    id: item.diagramData.id,
-                    name: item.diagramData.name,
-                    content: item.diagramData.bpmn_xml
-                });
+            if (welcomeMessage) {
+                welcomeMessage.style.display = 'none';
             }
+
+            // 다이어그램 데이터로 BPMN 에디터에 로드
+            await appManager.bpmnEditor.openDiagram({
+                id: diagram.id,
+                name: diagram.name,
+                content: bpmnXml
+            });
             
-            console.log('✅ BPMN diagram opened successfully:', item.diagramData.name);
+            console.log('✅ BPMN diagram opened successfully:', diagram.name);
             
         } catch (error) {
             console.error('❌ Failed to open BPMN diagram:', error);
-            // 에러 발생 시 사용자에게 알림
             alert('다이어그램을 열 수 없습니다. 다시 시도해주세요.');
         }
     }
