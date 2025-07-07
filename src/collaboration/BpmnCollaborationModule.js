@@ -385,29 +385,53 @@ export class BpmnCollaborationModule {
    * 커서 추적을 설정합니다.
    */
   setupCursorTracking() {
-    if (!this.modeler) return;
-    
-    // Canvas 요소 가져오기
-    const canvas = this.modeler.get('canvas');
-    const eventBus = this.modeler.get('eventBus');
-    const canvasContainer = canvas.getContainer();
-    
-    // 마우스 이동 이벤트 리스너
-    canvasContainer.addEventListener('mousemove', (e) => {
-      this.updateLocalCursor(e);
-    });
-    
-    // 요소 클릭 이벤트 리스너
-    eventBus.on('element.click', (e) => {
-      this.updateLocalCursor(null, e.element);
-    });
-    
-    // Awareness 변경 이벤트 리스너
-    collaborationManager.on('awarenessChange', (data) => {
-      this.updateRemoteCursors();
-    });
-    
-    console.log('👆 커서 추적이 설정되었습니다.');
+    if (!this.modeler) {
+      console.warn('Modeler not available for cursor tracking');
+      return;
+    }
+
+    try {
+      // Canvas 요소 가져오기 (안전한 방식)
+      const canvas = this.modeler.get('canvas');
+      const eventBus = this.modeler.get('eventBus');
+      
+      if (!canvas) {
+        console.warn('Canvas not available, retrying cursor tracking setup...');
+        // 500ms 후 재시도
+        setTimeout(() => this.setupCursorTracking(), 500);
+        return;
+      }
+      
+      const canvasContainer = canvas.getContainer();
+      
+      if (!canvasContainer) {
+        console.warn('Canvas container not available, retrying cursor tracking setup...');
+        // 500ms 후 재시도  
+        setTimeout(() => this.setupCursorTracking(), 500);
+        return;
+      }
+      
+      // 마우스 이동 이벤트 리스너
+      canvasContainer.addEventListener('mousemove', (e) => {
+        this.updateLocalCursor(e);
+      });
+      
+      // 요소 클릭 이벤트 리스너
+      eventBus.on('element.click', (e) => {
+        this.updateLocalCursor(null, e.element);
+      });
+      
+      // Awareness 변경 이벤트 리스너
+      collaborationManager.on('awarenessChange', (data) => {
+        this.updateRemoteCursors();
+      });
+      
+      console.log('👆 커서 추적이 설정되었습니다.');
+      
+    } catch (error) {
+      console.warn('⚠️ Failed to setup cursor tracking:', error);
+      // 협업 기능은 계속 작동하되 커서 추적만 비활성화
+    }
   }
   
   /**
@@ -418,31 +442,40 @@ export class BpmnCollaborationModule {
   updateLocalCursor(mouseEvent, element = null) {
     if (!this.isInitialized) return;
     
-    const canvas = this.modeler.get('canvas');
-    const canvasContainer = canvas.getContainer();
-    const rect = canvasContainer.getBoundingClientRect();
-    
-    let cursorData = {
-      timestamp: Date.now()
-    };
-    
-    if (mouseEvent) {
-      // 마우스 위치 기반 커서
-      cursorData.x = mouseEvent.clientX - rect.left;
-      cursorData.y = mouseEvent.clientY - rect.top;
-      cursorData.type = 'mouse';
+    try {
+      const canvas = this.modeler.get('canvas');
+      if (!canvas) return;
+      
+      const canvasContainer = canvas.getContainer();
+      if (!canvasContainer) return;
+      
+      const rect = canvasContainer.getBoundingClientRect();
+      
+      let cursorData = {
+        timestamp: Date.now()
+      };
+      
+      if (mouseEvent) {
+        // 마우스 위치 기반 커서
+        cursorData.x = mouseEvent.clientX - rect.left;
+        cursorData.y = mouseEvent.clientY - rect.top;
+        cursorData.type = 'mouse';
+      }
+      
+      if (element) {
+        // 요소 기반 커서
+        cursorData.elementId = element.id;
+        cursorData.elementType = element.type;
+        cursorData.type = 'element';
+      }
+      
+      // Awareness에 커서 정보 업데이트
+      collaborationManager.updateCursor(cursorData);
+      this.cursorState.localCursor = cursorData;
+      
+    } catch (error) {
+      console.warn('⚠️ Failed to update local cursor:', error);
     }
-    
-    if (element) {
-      // 요소 기반 커서
-      cursorData.elementId = element.id;
-      cursorData.elementType = element.type;
-      cursorData.type = 'element';
-    }
-    
-    // Awareness에 커서 정보 업데이트
-    collaborationManager.updateCursor(cursorData);
-    this.cursorState.localCursor = cursorData;
   }
   
   /**
