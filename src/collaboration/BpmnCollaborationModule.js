@@ -619,6 +619,13 @@ export class BpmnCollaborationModule {
   }
 
   /**
+   * 서버 연결 상태를 확인합니다.
+   */
+  isConnectedToServer() {
+    return collaborationManager.isConnectedToServer();
+  }
+
+  /**
    * 협업 모듈을 종료합니다.
    */
   disconnect() {
