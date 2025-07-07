@@ -22,8 +22,9 @@ export class CollaborationManager {
    * @param {string} roomId - 방 ID
    * @param {string} websocketUrl - WebSocket 서버 URL
    * @param {Object} userInfo - 사용자 정보
+   * @param {string} diagramId - 다이어그램 ID (서버 측 저장용)
    */
-  initialize(roomId, websocketUrl = 'ws://localhost:1234', userInfo = {}) {
+  initialize(roomId, websocketUrl = 'ws://localhost:1234', userInfo = {}, diagramId = null) {
     return new Promise((resolve, reject) => {
       try {
         // 기존 연결이 있으면 정리
@@ -42,8 +43,11 @@ export class CollaborationManager {
         // Yjs 문서 생성
         this.ydoc = new Y.Doc();
         
+        // WebSocket URL에 다이어그램 ID 추가 (서버 측 저장을 위해)
+        const wsUrl = diagramId ? `${websocketUrl}/${roomId}?diagramId=${diagramId}` : `${websocketUrl}/${roomId}`;
+        
         // WebSocket 프로바이더 생성 (타임아웃 추가)
-        this.provider = new WebsocketProvider(websocketUrl, roomId, this.ydoc, {
+        this.provider = new WebsocketProvider(wsUrl, roomId, this.ydoc, {
           maxBackoffTime: 10000, // 최대 재연결 대기 시간
           maxRetries: 3 // 최대 재연결 시도 횟수
         });

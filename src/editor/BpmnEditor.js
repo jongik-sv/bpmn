@@ -552,11 +552,13 @@ export class BpmnEditor {
       this.modeler.on('commandStack.changed', () => {
         this.exportArtifacts();
         
-        // 협업 모드에서는 자동 저장 비활성화 (충돌 방지)
-        if (!this.collaborationModule || !this.collaborationModule.isConnectedToServer()) {
-          this.debouncedAutoSave(); // 단독 작업 시에만 자동 저장
-        } else {
-          console.log('📝 Collaboration mode: Auto-save disabled to prevent conflicts');
+        // 서버 측 저장 시스템: 클라이언트 자동 저장 완전 비활성화
+        // 모든 저장은 협업 서버에서 중앙 관리
+        console.log('📝 Server-side persistence: Client auto-save disabled');
+        
+        // 협업 모드인 경우 서버로 변경사항 전송
+        if (this.collaborationModule && this.collaborationModule.isConnectedToServer()) {
+          this.syncToCollaborationServer();
         }
       });
 
@@ -606,18 +608,23 @@ export class BpmnEditor {
         }
       });
       
-      // 기본 룸 ID
+      // 룸 ID와 다이어그램 ID 생성
       const roomId = this.currentProject ? `project-${this.currentProject.id}` : 'demo-room';
+      const diagramId = this.currentDiagram ? (this.currentDiagram.id || this.currentDiagram.diagramId) : null;
       
-      // 협업 모듈 초기화
-      await this.collaborationModule.initialize(roomId, {
-        websocketUrl: 'ws://localhost:1234',
-        userInfo: {
+      console.log(`🏠 Initializing collaboration: room=${roomId}, diagram=${diagramId}`);
+      
+      // 협업 모듈 초기화 (다이어그램 ID 포함)
+      await this.collaborationModule.initialize(
+        roomId, 
+        'ws://localhost:1234',
+        {
           id: user.id,
           name: user.user_metadata?.display_name || user.email,
           email: user.email
-        }
-      });
+        },
+        diagramId
+      );
       
       console.log('✅ Collaboration initialized successfully');
       
@@ -758,6 +765,28 @@ export class BpmnEditor {
   }
 
   /**
+   * 협업 서버로 변경사항 동기화
+   */
+  async syncToCollaborationServer() {
+    try {
+      if (!this.modeler || !this.collaborationModule) {
+        return;
+      }
+
+      // 현재 BPMN XML 가져오기
+      const { xml } = await this.modeler.saveXML({ format: true });
+      
+      // 협업 서버의 공유 맵에 저장 (서버가 자동으로 DB에 저장)
+      if (this.collaborationModule.sharedDiagram) {
+        this.collaborationModule.sharedDiagram.set('xml', xml);
+        console.log('📤 Synced changes to collaboration server');
+      }
+    } catch (error) {
+      console.error('❌ Failed to sync to collaboration server:', error);
+    }
+  }
+
+  /**
    * 협업 상태 표시
    */
   updateCollaborationStatus(connected) {
@@ -844,10 +873,10 @@ export class BpmnEditor {
         <div style="display: flex; align-items: start; gap: 8px;">
           <span style="font-size: 16px;">⚠️</span>
           <div style="flex: 1;">
-            <div style="font-weight: 600; color: #92400e; margin-bottom: 4px;">협업 모드 활성화</div>
+            <div style="font-weight: 600; color: #92400e; margin-bottom: 4px;">서버 중앙 저장 활성화</div>
             <div style="font-size: 13px; color: #b45309; line-height: 1.4;">
-              자동 저장이 비활성화되었습니다.<br>
-              <strong>수동으로 저장</strong>하여 변경사항을 보존하세요.
+              모든 변경사항이 <strong>협업 서버에 자동 저장</strong>됩니다.<br>
+              실시간 동기화 및 중앙 관리로 안전한 협업!
             </div>
           </div>
           <button onclick="this.parentElement.parentElement.remove()" style="
