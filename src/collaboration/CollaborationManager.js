@@ -43,8 +43,10 @@ export class CollaborationManager {
         // Yjs 문서 생성
         this.ydoc = new Y.Doc();
         
-        // WebSocket URL에 다이어그램 ID 추가 (서버 측 저장을 위해)
-        const wsUrl = diagramId ? `${websocketUrl}/${roomId}?diagramId=${diagramId}` : `${websocketUrl}/${roomId}`;
+        // WebSocket URL 구성 (Y.js WebsocketProvider는 wsUrl을 base로 사용하고 roomId를 추가함)
+        const wsUrl = websocketUrl; // 기본 URL만 사용
+        
+        console.log(`🔗 WebSocket 연결 정보: URL=${wsUrl}, 룸ID=${roomId}`);
         
         // WebSocket 프로바이더 생성 (타임아웃 추가)
         this.provider = new WebsocketProvider(wsUrl, roomId, this.ydoc, {
@@ -70,6 +72,16 @@ export class CollaborationManager {
             clearTimeout(connectionTimeout);
             this.isConnected = true;
             console.log('✅ 협업 서버 연결 성공');
+            
+            // 연결 성공 후 diagramId 전송 (서버 측 저장을 위해)
+            if (diagramId && this.provider.ws) {
+              this.provider.ws.send(JSON.stringify({
+                type: 'diagram-id',
+                diagramId: diagramId,
+                roomId: roomId
+              }));
+            }
+            
             resolve(true);
           } else if (event.status === 'disconnected') {
             this.isConnected = false;
@@ -80,7 +92,14 @@ export class CollaborationManager {
         // 연결 오류 처리
         this.provider.on('connection-error', (error) => {
           clearTimeout(connectionTimeout);
-          console.warn('⚠️ 협업 서버 연결 오류:', error.message);
+          console.warn('⚠️ 협업 서버 연결 오류:', error);
+          console.warn('⚠️ 오류 상세:', {
+            message: error?.message,
+            code: error?.code,
+            type: error?.type,
+            url: wsUrl,
+            roomId: roomId
+          });
           this.handleConnectionFailure();
           resolve(false); // 오류시 false 반환하여 계속 진행
         });
