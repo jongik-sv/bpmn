@@ -1066,3 +1066,111 @@ body {
     opacity: 1;
   }
 }
+
+/* BPMN 에디터 컨텍스트 메뉴 스타일 개선 */
+.djs-popup,
+.djs-context-menu,
+.bjs-popup-menu {
+  background-color: #2d2d30 !important;
+  border: 1px solid #007acc !important;
+  border-radius: 4px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif !important;
+  z-index: 10000 !important;
+}
+
+.djs-popup .entry,
+.djs-context-menu .entry,
+.bjs-popup-menu .entry {
+  color: #ffffff !important;
+  background-color: transparent !important;
+  padding: 8px 12px !important;
+  border: none !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  text-align: left !important;
+  transition: all 0.15s ease !important;
+}
+
+.djs-popup .entry:hover,
+.djs-context-menu .entry:hover,
+.bjs-popup-menu .entry:hover {
+  background-color: #007acc !important;
+  color: #ffffff !important;
+}
+
+.djs-popup .entry:active,
+.djs-context-menu .entry:active,
+.bjs-popup-menu .entry:active {
+  background-color: #005a99 !important;
+}
+
+.djs-popup .entry.disabled,
+.djs-context-menu .entry.disabled,
+.bjs-popup-menu .entry.disabled {
+  color: #666666 !important;
+  cursor: not-allowed !important;
+}
+
+.djs-popup .entry.disabled:hover,
+.djs-context-menu .entry.disabled:hover,
+.bjs-popup-menu .entry.disabled:hover {
+  background-color: transparent !important;
+}
+
+/* BPMN 팝업 메뉴 구분선 */
+.djs-popup .separator,
+.djs-context-menu .separator,
+.bjs-popup-menu .separator {
+  height: 1px !important;
+  background-color: #464647 !important;
+  margin: 4px 8px !important;
+  border: none !important;
+}
+
+/* BPMN 토큰 시뮬레이션 및 기타 팝업 */
+.bpmn-tooltip,
+.djs-direct-editing,
+.djs-label-editing {
+  background-color: #2d2d30 !important;
+  color: #ffffff !important;
+  border: 1px solid #007acc !important;
+  border-radius: 3px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Properties Panel 개선 */
+.bio-properties-panel {
+  background-color: #252526 !important;
+  color: #cccccc !important;
+  border-left: 1px solid #3e3e3e !important;
+}
+
+.bio-properties-panel .bio-properties-panel-header {
+  background-color: #2d2d30 !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid #464647 !important;
+}
+
+.bio-properties-panel .bio-properties-panel-group-header {
+  background-color: #37373d !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid #464647 !important;
+}
+
+.bio-properties-panel input,
+.bio-properties-panel textarea,
+.bio-properties-panel select {
+  background-color: #3c3c3c !important;
+  color: #ffffff !important;
+  border: 1px solid #464647 !important;
+  border-radius: 2px !important;
+}
+
+.bio-properties-panel input:focus,
+.bio-properties-panel textarea:focus,
+.bio-properties-panel select:focus {
+  border-color: #007acc !important;
+  outline: none !important;
+  box-shadow: 0 0 0 1px #007acc !important;
+}

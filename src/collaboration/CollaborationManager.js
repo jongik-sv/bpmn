@@ -138,9 +138,11 @@ export class CollaborationManager {
     // 더미 awareness 객체 생성 (로컬 작업용)
     this.awareness = {
       setLocalStateField: () => {},
+      setLocalState: () => {}, // 누락된 메소드 추가
       on: () => {},
       getStates: () => new Map(),
-      destroy: () => {}
+      destroy: () => {},
+      localState: null // localState 속성도 추가
     };
     
     this.isConnected = false;
@@ -324,7 +326,12 @@ export class CollaborationManager {
       // Awareness에서 사용자 제거
       if (this.awareness) {
         try {
-          this.awareness.setLocalState(null);
+          // setLocalState 메소드가 존재하는지 확인 후 호출
+          if (typeof this.awareness.setLocalState === 'function') {
+            this.awareness.setLocalState(null);
+          } else {
+            console.log('🔧 setLocalState method not available, skipping awareness cleanup');
+          }
         } catch (error) {
           console.warn('⚠️ Error clearing awareness state:', error);
         }
