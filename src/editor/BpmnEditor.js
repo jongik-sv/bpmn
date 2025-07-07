@@ -184,6 +184,31 @@ export class BpmnEditor {
   }
 
   /**
+   * 협업 룸 변경
+   */
+  async changeCollaborationRoom(roomId) {
+    if (this.collaborationModule) {
+      try {
+        const userInfo = this.currentUser ? {
+          id: this.currentUser.id,
+          name: this.currentUser.user_metadata?.display_name || this.currentUser.email,
+          email: this.currentUser.email
+        } : null;
+        
+        await this.collaborationModule.changeRoom(roomId, userInfo);
+        console.log('✅ Collaboration room changed to:', roomId);
+      } catch (error) {
+        console.error('❌ Failed to change collaboration room:', error);
+        if (window.appManager) {
+          window.appManager.showNotification('협업 룸 변경에 실패했습니다.', 'error');
+        }
+      }
+    } else {
+      console.warn('⚠️ Collaboration module not initialized, cannot change room.');
+    }
+  }
+
+  /**
    * 다이어그램 열기
    */
   async openDiagram(diagramData) {

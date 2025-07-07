@@ -1354,18 +1354,14 @@ class Explorer {
             
             if (item.type === 'folder') {
                 // 폴더 이름 변경
-                const folderData = {
-                    id: item.folderId,
-                    name: newName
-                };
-                result = await dbManager.updateFolder(folderData);
+                result = await dbManager.renameFolder(item.folderId, newName);
             } else {
                 // 다이어그램 이름 변경
-                const diagramData = {
-                    id: item.diagramId,
-                    name: newName
+                const updates = {
+                    name: newName,
+                    last_modified_by: appManager.currentUser?.id
                 };
-                result = await dbManager.updateDiagram(diagramData);
+                result = await dbManager.updateDiagram(item.diagramId, updates);
             }
             
             if (result.error) {
@@ -1519,18 +1515,14 @@ class Explorer {
             
             if (item.type === 'folder') {
                 // 폴더 이동
-                const folderData = {
-                    id: item.folderId,
-                    parent_id: newParentId
-                };
-                result = await dbManager.updateFolder(folderData);
+                result = await dbManager.updateFolder(item.folderId, { parent_id: newParentId });
             } else {
                 // 다이어그램 이동
-                const diagramData = {
-                    id: item.diagramId,
-                    folder_id: newParentId
+                const updates = {
+                    folder_id: newParentId,
+                    last_modified_by: appManager.currentUser?.id
                 };
-                result = await dbManager.updateDiagram(diagramData);
+                result = await dbManager.updateDiagram(item.diagramId, updates);
             }
             
             if (result.error) {
