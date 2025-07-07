@@ -35,6 +35,12 @@ export class BpmnEditor {
     this.modeler = null;
     this.isInitialized = false;
     
+    // 자동 저장 상태 관리
+    this.autoSaveTimeout = null;
+    this.isSaving = false;
+    this.lastSaveTime = 0;
+    this.autoSaveDelay = 2000; // 2초 디바운스
+    
     // 지연 초기화 - DOM이 준비되면 초기화
     this.initializeWhenReady();
   }
@@ -350,12 +356,43 @@ export class BpmnEditor {
   }
 
   /**
-   * 다이어그램 자동 저장
+   * 다이어그램 자동 저장 (디바운스 적용)
+   */
+  debouncedAutoSave() {
+    // 기존 타이머 취소
+    if (this.autoSaveTimeout) {
+      clearTimeout(this.autoSaveTimeout);
+    }
+    
+    // 새로운 타이머 설정
+    this.autoSaveTimeout = setTimeout(() => {
+      this.autoSaveDiagram();
+    }, this.autoSaveDelay);
+  }
+
+  /**
+   * 다이어그램 자동 저장 (실제 저장 로직)
    */
   async autoSaveDiagram() {
     if (!this.currentDiagram || this.currentDiagram.id === 'new') {
       return; // 새 다이어그램은 자동 저장하지 않음
     }
+
+    // 이미 저장 중이면 무시
+    if (this.isSaving) {
+      console.log('⏳ Auto-save already in progress, skipping...');
+      return;
+    }
+
+    // 최근 저장 시간 확인 (1초 내 중복 방지)
+    const now = Date.now();
+    if (now - this.lastSaveTime < 1000) {
+      console.log('⏱️ Auto-save too frequent, skipping...');
+      return;
+    }
+
+    this.isSaving = true;
+    this.lastSaveTime = now;
 
     try {
       const { xml } = await this.modeler.saveXML({ format: true });
@@ -379,7 +416,6 @@ export class BpmnEditor {
       if (window.dbManager) {
         const updateData = {
           bpmn_xml: xml,
-          content: xml, // content 필드도 함께 업데이트
           last_modified_by: this.currentUser?.id
         };
         
@@ -395,8 +431,10 @@ export class BpmnEditor {
           this.showAutoSaveStatus('저장됨');
           
           // 현재 다이어그램 데이터 업데이트
-          this.currentDiagram.content = xml;
           this.currentDiagram.bpmn_xml = xml;
+          if (this.currentDiagram.content !== undefined) {
+            this.currentDiagram.content = xml; // content 필드가 있는 경우에만 업데이트
+          }
         }
       } else {
         // DB 연결이 없으면 로컬에 저장
@@ -408,6 +446,9 @@ export class BpmnEditor {
     } catch (error) {
       console.error('❌ Auto-save failed:', error);
       this.showAutoSaveStatus('저장 실패');
+    } finally {
+      // 저장 상태 해제
+      this.isSaving = false;
     }
   }
 
@@ -507,11 +548,11 @@ export class BpmnEditor {
 
       this.container.removeClass('with-diagram');
       
-      // 다이어그램 변경 시 내보내기 업데이트 및 자동 저장
-      this.modeler.on('commandStack.changed', debounce(() => {
+      // 다이어그램 변경 시 내보내기 업데이트 및 자동 저장 (디바운스 적용)
+      this.modeler.on('commandStack.changed', () => {
         this.exportArtifacts();
-        this.autoSaveDiagram();
-      }, 1000));
+        this.debouncedAutoSave(); // 디바운스 적용된 자동 저장 사용
+      });
       
       console.log('✅ BPMN Modeler initialized successfully');
     } catch (error) {
