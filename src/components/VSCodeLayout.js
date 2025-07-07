@@ -90,6 +90,19 @@ class VSCodeLayout {
                 </div>
                 <div class="editor-container" style="flex: 1; display: flex; flex-direction: column; background-color: #1e1e1e; overflow: hidden; min-height: 0;">
                     <div class="editor-content" style="flex: 1; position: relative; min-height: 0; display: flex; overflow: hidden;">
+                        <div class="editor-welcome-message" style="flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; color: #cccccc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;">
+                            <div style="text-align: center; max-width: 400px;">
+                                <div style="font-size: 48px; margin-bottom: 24px; opacity: 0.6;">📄</div>
+                                <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 300; color: #ffffff;">BPMN 다이어그램을 선택하세요</h2>
+                                <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #999999;">
+                                    왼쪽 탐색기에서 BPMN 다이어그램을 클릭하여 편집을 시작하세요.
+                                </p>
+                                <div style="display: flex; gap: 12px; justify-content: center; font-size: 12px; color: #666666;">
+                                    <span>📁 새 폴더 만들기</span>
+                                    <span>📄 새 다이어그램 만들기</span>
+                                </div>
+                            </div>
+                        </div>
                         <!-- BPMN Editor will be inserted here -->
                     </div>
                 </div>
@@ -988,14 +1001,16 @@ class VSCodeLayout {
             
             // 에디터 컨테이너 확인 및 준비
             const editorContent = this.container.querySelector('.editor-content');
+            const welcomeMessage = editorContent?.querySelector('.editor-welcome-message');
             const readyContainer = editorContent?.querySelector('#bpmn-editor-ready');
             const placeholderContainer = editorContent?.querySelector('#bpmn-editor-placeholder');
             
-            // 준비 상태 메시지나 플레이스홀더가 있다면 제거하고 에디터 컨테이너 생성
-            if (readyContainer || placeholderContainer) {
-                console.log('🔧 Replacing ready/placeholder container with BPMN editor...');
+            // 웰컴 메시지나 기존 컨테이너가 있다면 제거하고 에디터 컨테이너 생성
+            if (welcomeMessage || readyContainer || placeholderContainer) {
+                console.log('🔧 Replacing welcome/ready/placeholder container with BPMN editor...');
                 
                 // 기존 컨테이너 제거
+                if (welcomeMessage) welcomeMessage.remove();
                 if (readyContainer) readyContainer.remove();
                 if (placeholderContainer) placeholderContainer.remove();
                 

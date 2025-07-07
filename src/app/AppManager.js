@@ -1255,6 +1255,10 @@ export class AppManager {
       if (!this.bpmnEditor) {
         this.bpmnEditor = new BpmnEditor();
         console.log('✅ BPMN Editor instance created');
+        
+        // 수동으로 초기화 실행 (지연 초기화)
+        await this.bpmnEditor.initializeWhenReady();
+        console.log('✅ BPMN Editor initialized');
       }
       
       // 현재 사용자 설정

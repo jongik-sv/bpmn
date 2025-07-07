@@ -41,8 +41,7 @@ export class BpmnEditor {
     this.lastSaveTime = 0;
     this.autoSaveDelay = 2000; // 2초 디바운스
     
-    // 지연 초기화 - DOM이 준비되면 초기화
-    this.initializeWhenReady();
+    // 지연 초기화는 하지 않음 - 문서 선택 시에만 초기화
   }
   
   async initializeWhenReady() {
