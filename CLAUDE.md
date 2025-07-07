@@ -378,9 +378,24 @@ The project currently maintains two parallel implementations:
 - **BpmnCollaborationModule.js**: BPMN-specific collaboration logic
 
 ### WebSocket Server
-- **websocket-server.js**: Standalone WebSocket server for real-time collaboration
+- **websocket-server.js**: Enhanced WebSocket server with intelligent document synchronization
 - **test-ws.js**: Testing utility for WebSocket connections
-- Supports multiple rooms for different projects
+- Supports multiple rooms with automatic document loading and saving
+
+#### Document Synchronization Strategy
+**Document Loading:**
+1. **Existing Room**: Load document from room memory (immediate)
+2. **New Room**: Load document from database and populate room
+
+**Auto-Save Strategy:**
+1. **10-second Debounce**: Save after 10 seconds of no changes
+2. **1-minute Force Save**: Save if changes exist after 1 minute
+3. **Room Cleanup Save**: Save when last user leaves the room
+
+**Connection Management:**
+- Tracks active connections per room
+- Automatic room cleanup 5 minutes after last user leaves
+- Graceful document persistence on room closure
 
 ### Database Integration
 - **Supabase**: Primary database with PostgreSQL, Auth, and real-time features

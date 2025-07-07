@@ -16,7 +16,7 @@ const port = process.env.PORT || 1234
 
 // 문서별 Y.Doc 저장소 및 저장 상태 관리
 const documents = new Map() // roomId -> Y.Doc
-const documentMetadata = new Map() // roomId -> { diagramId, lastSaved, saveInProgress }
+const documentMetadata = new Map() // roomId -> { diagramId, lastSaved, saveInProgress, lastChanged, forceSaveTimeout, connections }
 const saveQueue = new Map() // roomId -> save function
 
 // Supabase 클라이언트 설정 (서버 측)
@@ -33,9 +33,41 @@ try {
 }
 
 /**
+ * 데이터베이스에서 문서 로드
+ */
+async function loadDocumentFromDatabase(diagramId) {
+  if (!supabase) {
+    console.log(`📝 Loading document ${diagramId} - Supabase not configured`)
+    return null
+  }
+
+  try {
+    console.log(`📖 Loading document ${diagramId} from database...`)
+
+    const { data, error } = await supabase
+      .from('diagrams')
+      .select('bpmn_xml, name, updated_at')
+      .eq('id', diagramId)
+      .single()
+
+    if (error) {
+      console.error(`❌ Failed to load document ${diagramId}:`, error)
+      return null
+    }
+
+    console.log(`✅ Document ${diagramId} loaded from database`)
+    return data
+
+  } catch (error) {
+    console.error(`❌ Error loading document ${diagramId}:`, error)
+    return null
+  }
+}
+
+/**
  * 서버 측 문서 저장 함수
  */
-async function saveDocumentToDatabase(roomId, ydoc) {
+async function saveDocumentToDatabase(roomId, ydoc, reason = 'unknown') {
   if (!supabase) {
     console.log(`📝 Saving document ${roomId} - Supabase not configured, skipping DB save`)
     return false
@@ -56,7 +88,7 @@ async function saveDocumentToDatabase(roomId, ydoc) {
 
   try {
     // Y.Doc에서 BPMN XML 추출
-    const bpmnMap = ydoc.getMap('bpmn')
+    const bpmnMap = ydoc.getMap('bpmn-diagram')
     const bpmnXml = bpmnMap.get('xml')
 
     if (!bpmnXml) {
@@ -64,7 +96,7 @@ async function saveDocumentToDatabase(roomId, ydoc) {
       return false
     }
 
-    console.log(`💾 Saving document ${roomId} to database...`)
+    console.log(`💾 Saving document ${roomId} to database (reason: ${reason})...`)
 
     const { data, error } = await supabase
       .from('diagrams')
@@ -93,39 +125,87 @@ async function saveDocumentToDatabase(roomId, ydoc) {
 }
 
 /**
- * 디바운스된 저장 함수 생성
+ * 새로운 저장 전략 구현
  */
-function createDebouncedSave(roomId) {
-  return debounce(async () => {
+function setupSaveStrategies(roomId) {
+  const metadata = documentMetadata.get(roomId)
+  if (!metadata) return
+
+  // 1. 10초 디바운스 저장 함수
+  const debouncedSave = debounce(async () => {
     const ydoc = documents.get(roomId)
     if (ydoc) {
-      await saveDocumentToDatabase(roomId, ydoc)
+      await saveDocumentToDatabase(roomId, ydoc, '10s-debounce')
     }
-  }, 2000) // 2초 디바운스
+  }, 10000) // 10초 디바운스
+
+  // 2. 1분 강제 저장 타이머 설정
+  function scheduleForceSave() {
+    // 기존 타이머 정리
+    if (metadata.forceSaveTimeout) {
+      clearTimeout(metadata.forceSaveTimeout)
+    }
+
+    // 1분 후 강제 저장
+    metadata.forceSaveTimeout = setTimeout(async () => {
+      const ydoc = documents.get(roomId)
+      if (ydoc) {
+        console.log(`⏰ Force saving document ${roomId} after 1 minute`)
+        await saveDocumentToDatabase(roomId, ydoc, '1min-force')
+      }
+    }, 60000) // 1분
+  }
+
+  return { debouncedSave, scheduleForceSave }
 }
 
 /**
  * 문서 변경 이벤트 리스너 설정
  */
-function setupDocumentPersistence(roomId, ydoc, diagramId) {
+async function setupDocumentPersistence(roomId, ydoc, diagramId) {
   console.log(`🔧 Setting up persistence for room ${roomId} (diagram: ${diagramId})`)
 
   // 메타데이터 저장
   documentMetadata.set(roomId, {
     diagramId,
-    lastSaved: Date.now(),
+    lastSaved: 0,
     saveInProgress: false,
-    lastModifiedBy: null
+    lastModifiedBy: null,
+    lastChanged: 0,
+    forceSaveTimeout: null,
+    connections: 0
   })
 
-  // 디바운스된 저장 함수 생성
-  const debouncedSave = createDebouncedSave(roomId)
-  saveQueue.set(roomId, debouncedSave)
+  // 새로운 저장 전략 설정
+  const { debouncedSave, scheduleForceSave } = setupSaveStrategies(roomId)
+  saveQueue.set(roomId, { debouncedSave, scheduleForceSave })
 
-  // Y.Doc 변경 시 자동 저장
+  // 데이터베이스에서 문서 로드 및 Y.Doc에 설정
+  const dbDocument = await loadDocumentFromDatabase(diagramId)
+  if (dbDocument && dbDocument.bpmn_xml) {
+    console.log(`📖 Loading existing document from DB for room ${roomId}`)
+    const bpmnMap = ydoc.getMap('bpmn-diagram')
+    bpmnMap.set('xml', dbDocument.bpmn_xml)
+    documentMetadata.get(roomId).lastSaved = Date.now()
+  } else {
+    console.log(`📄 No existing document found for room ${roomId}, will use client data`)
+  }
+
+  // Y.Doc 변경 시 저장 로직
   ydoc.on('update', () => {
-    console.log(`📝 Document ${roomId} updated, scheduling save...`)
+    const metadata = documentMetadata.get(roomId)
+    if (!metadata) return
+
+    const now = Date.now()
+    metadata.lastChanged = now
+
+    console.log(`📝 Document ${roomId} updated, scheduling saves...`)
+    
+    // 10초 디바운스 저장
     debouncedSave()
+    
+    // 1분 강제 저장 타이머 재설정
+    scheduleForceSave()
   })
 
   console.log(`✅ Persistence setup complete for room ${roomId}`)
@@ -147,7 +227,7 @@ const wss = new WebSocket.Server({
 
 console.log(`WebSocket server starting on ${host}:${port}`)
 
-wss.on('connection', (conn, req) => {
+wss.on('connection', async (conn, req) => {
   console.log('New WebSocket connection from:', req.socket.remoteAddress)
   
   // URL에서 room ID와 diagram ID 파싱
@@ -159,25 +239,66 @@ wss.on('connection', (conn, req) => {
   
   // 기존 Y.Doc이 있는지 확인하거나 새로 생성
   let ydoc = documents.get(roomId)
+  let isNewRoom = false
+  
   if (!ydoc) {
+    // 새 룸 생성
     ydoc = new Y.Doc()
     documents.set(roomId, ydoc)
-    console.log(`📄 Created new document for room: ${roomId}`)
+    isNewRoom = true
+    console.log(`📄 Created new room: ${roomId}`)
     
-    // 다이어그램 ID가 있으면 문서 저장 설정
+    // 다이어그램 ID가 있으면 문서 저장 설정 및 DB에서 로드
     if (diagramId) {
-      setupDocumentPersistence(roomId, ydoc, diagramId)
+      await setupDocumentPersistence(roomId, ydoc, diagramId)
     }
+  }
+  
+  // 연결 수 증가
+  const metadata = documentMetadata.get(roomId)
+  if (metadata) {
+    metadata.connections++
+    console.log(`👥 Room ${roomId} connections: ${metadata.connections}`)
   }
   
   // Yjs WebSocket 연결 설정
   setupWSConnection(conn, req, { docName: roomId, gc: true })
   
-  conn.on('close', () => {
+  conn.on('close', async () => {
     console.log(`🔌 Client disconnected from room: ${roomId}`)
     
-    // 룸에 더 이상 연결된 클라이언트가 없으면 정리
-    // (실제 구현에서는 더 정교한 정리 로직 필요)
+    // 연결 수 감소
+    const metadata = documentMetadata.get(roomId)
+    if (metadata) {
+      metadata.connections--
+      console.log(`👥 Room ${roomId} connections: ${metadata.connections}`)
+      
+      // 마지막 사용자가 나가면 저장 후 룸 정리
+      if (metadata.connections <= 0) {
+        console.log(`🧹 Last user left room ${roomId}, saving and cleaning up...`)
+        
+        const ydoc = documents.get(roomId)
+        if (ydoc) {
+          await saveDocumentToDatabase(roomId, ydoc, 'room-cleanup')
+        }
+        
+        // 타이머 정리
+        if (metadata.forceSaveTimeout) {
+          clearTimeout(metadata.forceSaveTimeout)
+        }
+        
+        // 룸 정리 (5분 후)
+        setTimeout(() => {
+          const currentMetadata = documentMetadata.get(roomId)
+          if (currentMetadata && currentMetadata.connections <= 0) {
+            console.log(`🗑️ Cleaning up room ${roomId} after 5 minutes of inactivity`)
+            documents.delete(roomId)
+            documentMetadata.delete(roomId)
+            saveQueue.delete(roomId)
+          }
+        }, 5 * 60 * 1000) // 5분
+      }
+    }
   })
 })
 

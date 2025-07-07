@@ -171,9 +171,17 @@ export class BpmnEditor {
     //   await this.createNewDiagram();
     // }
     
-    // 협업 룸 ID 업데이트
-    if (this.collaborationModule && project) {
-      const roomId = `project-${project.id}`;
+    // 협업 룸 ID 업데이트 (문서별 고유 룸)
+    if (this.collaborationModule && project && this.currentDiagram) {
+      const roomId = `project-${project.id}-diagram-${this.currentDiagram.id || this.currentDiagram.diagramId}`;
+      
+      console.log('🔄 Room ID generation in setCurrentProject:', {
+        projectId: project.id,
+        currentDiagramId: this.currentDiagram?.id || this.currentDiagram?.diagramId,
+        generatedRoomId: roomId,
+        hasCollaborationModule: !!this.collaborationModule,
+        hasCurrentDiagram: !!this.currentDiagram
+      });
       try {
         // 현재 사용자 정보와 함께 룸 변경
         const userInfo = this.currentUser ? {
@@ -201,6 +209,11 @@ export class BpmnEditor {
     if (this.collaborationModule) {
       try {
         console.log('🔄 Starting collaboration room change to:', roomId);
+      console.log('📋 Room details:', { 
+        projectId: project.id, 
+        diagramId: this.currentDiagram?.id || this.currentDiagram?.diagramId,
+        roomId: roomId
+      });
         
         const userInfo = this.currentUser ? {
           id: this.currentUser.id,
@@ -257,7 +270,19 @@ export class BpmnEditor {
    */
   async openDiagram(diagramData) {
     try {
+      console.log('📂 openDiagram called with:', {
+        diagramId: diagramData?.id || diagramData?.diagramId,
+        diagramName: diagramData?.name || diagramData?.title,
+        previousDiagram: this.currentDiagram?.id,
+        fullData: diagramData
+      });
+      
       this.currentDiagram = diagramData;
+      
+      console.log('✅ currentDiagram updated:', {
+        newDiagramId: this.currentDiagram?.id || this.currentDiagram?.diagramId,
+        newDiagramName: this.currentDiagram?.name || this.currentDiagram?.title
+      });
       
       // BPMN XML 로드 (빈 문서인 경우 디폴트 문서 사용)
       let xml = diagramData.content || newDiagramXML;
@@ -274,6 +299,32 @@ export class BpmnEditor {
       }
       
       await this.modeler.importXML(xml);
+      
+      // 다이어그램 로드 후 협업 룸 업데이트
+      if (this.currentProject && this.collaborationModule) {
+        const roomId = `project-${this.currentProject.id}-diagram-${this.currentDiagram.id || this.currentDiagram.diagramId}`;
+        
+        console.log('🔄 Updating collaboration room after diagram load:', {
+          projectId: this.currentProject.id,
+          diagramId: this.currentDiagram.id || this.currentDiagram.diagramId,
+          roomId: roomId
+        });
+        
+        try {
+          const userInfo = this.currentUser ? {
+            id: this.currentUser.id,
+            name: this.currentUser.user_metadata?.display_name || this.currentUser.email,
+            email: this.currentUser.email
+          } : null;
+          
+          // Diagram ID를 collaboration manager에 전달하여 서버 측 저장 활성화
+          const diagramId = this.currentDiagram.id || this.currentDiagram.diagramId;
+          await this.collaborationModule.changeRoom(roomId, userInfo, diagramId);
+          console.log('✅ Collaboration room updated successfully after diagram load');
+        } catch (error) {
+          console.error('❌ Failed to update collaboration room after diagram load:', error);
+        }
+      }
       
       // 캔버스 크기 조정
       setTimeout(() => {
@@ -562,6 +613,11 @@ export class BpmnEditor {
         // 협업 모드인 경우 서버로 변경사항 전송
         if (this.collaborationModule && this.collaborationModule.isConnectedToServer()) {
           this.syncToCollaborationServer();
+        } else {
+          console.log('🔍 Collaboration sync skipped:', {
+            hasModule: !!this.collaborationModule,
+            isConnected: this.collaborationModule?.isConnectedToServer()
+          });
         }
       });
 
@@ -611,11 +667,19 @@ export class BpmnEditor {
         }
       });
       
-      // 룸 ID와 다이어그램 ID 생성
-      const roomId = this.currentProject ? `project-${this.currentProject.id}` : 'demo-room';
+      // 룸 ID와 다이어그램 ID 생성 (문서별 고유 룸)
+      const roomId = this.currentProject && this.currentDiagram 
+        ? `project-${this.currentProject.id}-diagram-${this.currentDiagram.id || this.currentDiagram.diagramId}`
+        : 'demo-room';
       const diagramId = this.currentDiagram ? (this.currentDiagram.id || this.currentDiagram.diagramId) : null;
       
       console.log(`🏠 Initializing collaboration: room=${roomId}, diagram=${diagramId}`);
+      console.log('📋 Collaboration details:', { 
+        projectId: this.currentProject?.id, 
+        diagramId: diagramId,
+        roomId: roomId,
+        currentDiagram: this.currentDiagram
+      });
       
       // 협업 모듈 초기화 (다이어그램 ID 포함)
       await this.collaborationModule.initialize(
@@ -783,6 +847,8 @@ export class BpmnEditor {
       if (this.collaborationModule.sharedDiagram) {
         this.collaborationModule.sharedDiagram.set('xml', xml);
         console.log('📤 Synced changes to collaboration server');
+      } else {
+        console.warn('⚠️ No shared diagram available for sync');
       }
     } catch (error) {
       console.error('❌ Failed to sync to collaboration server:', error);
