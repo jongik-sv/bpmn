@@ -37,6 +37,9 @@ export class AppManager {
   async initialize() {
     console.log('AppManager initializing...');
     
+    // 전역 객체에 dbManager 설정
+    window.dbManager = dbManager;
+    
     // 데이터베이스 연결 테스트
     await this.testDatabaseConnection();
     
@@ -361,16 +364,21 @@ export class AppManager {
     try {
       this.setFormLoading(true);
 
-      console.log('Attempting to create project...');
-      const result = await dbManager.createProject({
+      console.log('🚀 AppManager: Attempting to create project...');
+      console.log('🚀 Current user:', this.currentUser);
+      
+      const projectData = {
         name,
         description,
         owner_id: this.currentUser.id,
         owner_name: this.currentUser.user_metadata?.display_name || this.currentUser.email?.split('@')[0] || 'Unknown User',
         owner_email: this.currentUser.email
-      });
+      };
+      
+      console.log('🚀 Project data to be created:', projectData);
+      const result = await dbManager.createProject(projectData);
 
-      console.log('Create project result:', result);
+      console.log('🚀 Create project result:', result);
 
       if (result.error) {
         console.warn('Project creation returned error:', result.error);
@@ -967,8 +975,8 @@ export class AppManager {
       return;
     }
 
-    console.log('Current user for folder creation:', this.currentUser);
-    console.log('Current project for folder creation:', this.currentProject);
+    console.log('🚀 AppManager: Current user for folder creation:', this.currentUser);
+    console.log('🚀 AppManager: Current project for folder creation:', this.currentProject);
 
     const name = prompt('새 폴더 이름을 입력하세요:', '새 폴더');
     if (!name || !name.trim()) return;
@@ -981,9 +989,9 @@ export class AppManager {
         created_by: this.currentUser?.id || 'anonymous'
       };
 
-      console.log('Creating folder with data:', folderData);
+      console.log('🚀 AppManager: Creating folder with data:', folderData);
       const result = await dbManager.createFolder(folderData);
-      console.log('Folder creation result:', result);
+      console.log('🚀 AppManager: Folder creation result:', result);
       
       if (result.error) {
         console.error('Folder creation failed:', result.error);
@@ -1168,16 +1176,20 @@ export class AppManager {
         editorLayout.style.display = 'none';
       }
       
+      // 에디터 페이지를 relative positioning으로 설정
+      editorPage.style.position = 'relative';
+      
       // VS Code 레이아웃용 컨테이너 생성
       let vscodeContainer = document.querySelector('#vscode-layout-container');
       if (!vscodeContainer) {
         vscodeContainer = document.createElement('div');
         vscodeContainer.id = 'vscode-layout-container';
-        vscodeContainer.style.cssText = 'width: 100%; height: 100vh; display: flex; position: relative;';
-        
         // 에디터 페이지에 직접 추가
         editorPage.appendChild(vscodeContainer);
       }
+      
+      // 스타일 적용 (display: flex 제거)
+      vscodeContainer.style.cssText = 'width: 100%; height: 100%; position: absolute; top: 0; left: 0;';
       
       // VS Code 레이아웃 생성
       this.vscodeLayout = new VSCodeLayout(vscodeContainer);
@@ -1277,11 +1289,15 @@ export class AppManager {
       return;
     }
 
+    console.log('🚀 AppManager: Creating new diagram...');
+    console.log('🚀 AppManager: Current project:', this.currentProject);
+    console.log('🚀 AppManager: Current user:', this.currentUser);
+
     const name = prompt('새 다이어그램 이름을 입력하세요:', '새 다이어그램');
     if (!name || !name.trim()) return;
 
     try {
-      const { data, error } = await dbManager.createDiagram({
+      const diagramData = {
         project_id: this.currentProject.id,
         name: name.trim(),
         description: '',
@@ -1299,13 +1315,19 @@ export class AppManager {
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>`,
         created_by: this.currentUser.id
-      });
+      };
 
-      if (error) {
-        console.error('Error creating diagram:', error);
+      console.log('🚀 AppManager: Diagram data to be created:', diagramData);
+      const result = await dbManager.createDiagram(diagramData);
+      console.log('🚀 AppManager: Diagram creation result:', result);
+
+      if (result.error) {
+        console.error('Error creating diagram:', result.error);
         this.showNotification('다이어그램 생성 중 오류가 발생했습니다.', 'error');
         return;
       }
+
+      const { data, error } = result;
 
       // 파일 트리 새로고침
       await this.loadFileTree();

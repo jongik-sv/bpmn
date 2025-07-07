@@ -1,6 +1,172 @@
 /* Import VS Code UI styles */
 @import './vscode-ui.css';
 
+/* Context Menu Styles */
+.context-menu {
+  position: fixed;
+  display: none;
+  background-color: #2d2d30;
+  border: 1px solid #464647;
+  border-radius: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 10000;
+  min-width: 160px;
+  padding: 4px 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+  font-size: 13px;
+  color: #cccccc;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: #cccccc;
+  background-color: transparent;
+  transition: background-color 0.1s ease;
+}
+
+.context-menu-item:hover {
+  background-color: #37373d;
+}
+
+.context-menu-item:focus {
+  background-color: #37373d;
+  outline: none;
+}
+
+.context-menu-item.disabled {
+  color: #666666;
+  cursor: default;
+}
+
+.context-menu-item.disabled:hover {
+  background-color: transparent;
+}
+
+.context-menu-separator {
+  height: 1px;
+  background-color: #464647;
+  margin: 4px 0;
+}
+
+/* Explorer Tree Item Action Buttons */
+.tree-item:hover .tree-item-actions {
+  display: flex !important;
+}
+
+.tree-action-button {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: none;
+  color: #cccccc;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  margin-left: 2px;
+}
+
+.tree-action-button:hover {
+  background-color: #404040;
+}
+
+/* Drag and Drop Styles */
+.tree-item.dragging {
+  opacity: 0.5;
+}
+
+.tree-item.drag-over {
+  background-color: #094771 !important;
+  border-left: 3px solid #007acc;
+}
+
+/* Root area drag over styling */
+.tree-view.drag-over-root {
+  background-color: rgba(0, 122, 204, 0.1);
+  border: 2px dashed #007acc;
+  border-radius: 4px;
+  position: relative;
+}
+
+.tree-view.drag-over-root::after {
+  content: '루트 폴더로 이동';
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background-color: #007acc;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  z-index: 1000;
+}
+
+/* 파일에 드롭할 때도 시각적 피드백 제공 */
+.tree-item[data-item-type="diagram"].drag-over {
+  background-color: #2d5016 !important;
+  border-left: 3px solid #7cb342;
+}
+
+/* Drop position indicators */
+.drop-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: #007acc;
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.drop-indicator.active {
+  opacity: 1;
+}
+
+.drop-indicator::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  background-color: #007acc;
+  border-radius: 50%;
+}
+
+/* Tree item ordering visual feedback */
+.tree-item {
+  position: relative;
+}
+
+/* Dynamic drop indicators are created by JavaScript - no CSS pseudo-elements needed */
+.drop-indicator {
+  transition: opacity 0.15s ease-in-out;
+  opacity: 1;
+}
+
+.drop-indicator.fade-in {
+  animation: fadeIn 0.15s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scaleX(0.8); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+/* Search Highlighting */
+.tree-item-label mark {
+  background-color: #515c6a;
+  color: #ffffff;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
 /* Reset and base styles */
 * {
   margin: 0;

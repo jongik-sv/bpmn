@@ -25,6 +25,7 @@ export class TreeItem {
         this.children = [];
         this.parent = null;
         this.isExpanded = collapsibleState === TreeItemCollapsibleState.Expanded;
+        this.sortOrder = 0; // 정렬 순서
     }
 
     generateId() {

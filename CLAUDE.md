@@ -10,12 +10,19 @@ This is a **BPMN Collaborative Editor** project that aims to build a real-time c
 
 ## Architecture & Technology Stack
 
-### Planned Technology Stack
-- **Frontend**: React 18+ with TypeScript, bpmn-js (BPMN.io), Vite build tool
-- **Backend**: Node.js with Express.js, TypeScript, Socket.io for real-time communication
-- **Database**: PostgreSQL via Supabase (includes Auth, Storage, Realtime)
+### Current Technology Stack
+- **Frontend**: 
+  - **Legacy**: Webpack + JavaScript (ES6+) with jQuery (main application)
+  - **Modern**: React 18+ with TypeScript, Vite build tool (bpmn-editor subproject)
+- **BPMN Editor**: bpmn-js (BPMN.io) library for diagram editing
+- **Backend**: 
+  - **WebSocket Server**: Node.js with ws library for real-time communication
+  - **Database**: PostgreSQL via Supabase (includes Auth, Storage, Realtime)
 - **Real-time Collaboration**: CRDT using Yjs (chosen over OT after extensive analysis)
-- **Infrastructure**: Docker containers, optional Kubernetes orchestration
+- **Styling**: 
+  - **Legacy**: Custom CSS with VS Code-inspired design system
+  - **Modern**: Tailwind CSS
+- **Development**: Concurrent development servers (webpack-dev-server + WebSocket server)
 
 ### Key Architectural Decisions
 1. **CRDT over OT**: The project has chosen Yjs-based CRDT for real-time collaboration after thorough analysis (see `ot-crdt-comparison.md`)
@@ -68,32 +75,68 @@ The project is configured with extensive AI tooling:
 - **Permissions**: Extensive bash command permissions for development tasks
 
 ### Key Development Commands
-**Current Available Commands:**
 
+**Main Project (Root Level - Legacy JavaScript)**
 ```bash
-# Development server (현재 사용 가능)
+# Development server with webpack
 npm run dev
 
-# Build for production (현재 사용 가능)
+# Build for production
 npm run build
 
-# Start development server (현재 사용 가능)
+# Start development server (alias for dev)
 npm start
 
-# Install dependencies (현재 사용 가능)
-npm install
-```
+# Real-time collaboration server (개발용)
+npm run ws-server
 
-**Additional Commands:**
-```bash
+# Full development (editor + websocket server)
+npm run dev:full
+npm run collab  # alias for dev:full
+
 # Database setup and testing
 npm run setup-db
 npm run db:test
 
-# Real-time collaboration server (개발용)
-npm run ws-server
-npm run dev:full
+# Install dependencies
+npm install
+```
 
+**bpmn-editor Subproject (React + TypeScript + Vite)**
+```bash
+# Navigate to modern editor first
+cd bpmn-editor
+
+# Development server (Vite)
+npm run dev
+
+# Build for production (TypeScript check + Vite build)
+npm run build
+
+# Lint code
+npm run lint
+
+# Preview production build
+npm run preview
+
+# Install dependencies
+npm install
+```
+
+**Testing & Development**
+```bash
+# Test WebSocket server
+node test-ws.js
+
+# Test database connection
+npm run db:test
+
+# Run WebSocket server standalone
+node websocket-server.js
+```
+
+**Database Commands (Supabase)**
+```bash
 # Database migrations (Supabase)
 npx supabase migration up
 
@@ -119,13 +162,20 @@ The project implements real-time collaboration using Yjs CRDT technology:
 - Advanced export capabilities (SVG, PNG, BPMN XML, JSON)
 
 ### Project Structure (Current)
+
+**Root Level - Legacy JavaScript Implementation**
 ```
 src/
 ├── app/
 │   └── AppManager.js           # Main application flow manager
 ├── components/
 │   ├── ProjectManager.js       # Project management UI
-│   └── SupabaseLoginModal.js   # Authentication modal
+│   ├── SupabaseLoginModal.js   # Authentication modal
+│   ├── VSCodeLayout.js         # VS Code-style UI layout
+│   ├── Explorer.js             # File explorer component
+│   ├── ActivityBar.js          # VS Code activity bar
+│   └── auth/
+│       └── AuthModal.js        # Authentication modal
 ├── collaboration/
 │   ├── BpmnCollaborationModule.js  # BPMN-specific collaboration
 │   └── CollaborationManager.js     # Core collaboration logic
@@ -133,12 +183,32 @@ src/
 │   └── BpmnEditor.js           # BPMN editor integration
 ├── lib/
 │   ├── database.js             # Database operations with fallback
-│   └── supabase.js             # Supabase client configuration
+│   ├── supabase.js             # Supabase client configuration
+│   ├── auth.js                 # Authentication utilities
+│   └── rbac.js                 # Role-based access control
 ├── styles/
 │   ├── app.css                 # Korean enterprise design system
-│   └── login.css               # Authentication styling
+│   ├── login.css               # Authentication styling
+│   ├── vscode-ui.css           # VS Code UI styling
+│   └── main.css                # Main application styles
 └── assets/
     └── newDiagram.bpmn         # Default BPMN template
+```
+
+**bpmn-editor Subproject - Modern React + TypeScript**
+```
+bpmn-editor/
+├── src/
+│   ├── components/
+│   │   └── BpmnEditor.tsx      # Modern BPMN editor component
+│   ├── App.tsx                 # React app root
+│   ├── main.tsx                # React entry point
+│   └── index.css               # Global styles
+├── public/
+├── package.json                # Vite + React dependencies
+├── vite.config.ts              # Vite configuration
+├── tailwind.config.js          # Tailwind CSS config
+└── tsconfig.json               # TypeScript configuration
 ```
 
 ## Development Phases
@@ -282,6 +352,43 @@ Core collaboration features have been successfully implemented with a modern mul
 
 **Current Status**: Ready for production feature development (Phase 3)
 
-## Rules
+## Development Architecture Notes
+
+### Dual Implementation Strategy
+The project currently maintains two parallel implementations:
+
+1. **Legacy JavaScript Implementation** (Root Level)
+   - Webpack + jQuery-based application
+   - Fully functional VS Code-style UI with file explorer
+   - Complete real-time collaboration with Yjs CRDT
+   - Supabase authentication and database integration
+   - **Status**: Production-ready with full feature set
+
+2. **Modern React Implementation** (bpmn-editor/)
+   - React 18 + TypeScript + Vite stack
+   - Tailwind CSS for styling
+   - Basic BPMN editor functionality
+   - **Status**: Basic MVP, requires real-time collaboration integration
+
+### Key Classes and Modules
+- **AppManager.js**: Main application orchestrator managing pages, auth, and editor
+- **VSCodeLayout.js**: VS Code-style UI with activity bar and explorer
+- **BpmnEditor.js**: BPMN editor integration with collaboration features
+- **CollaborationManager.js**: Yjs CRDT integration for real-time sync
+- **BpmnCollaborationModule.js**: BPMN-specific collaboration logic
+
+### WebSocket Server
+- **websocket-server.js**: Standalone WebSocket server for real-time collaboration
+- **test-ws.js**: Testing utility for WebSocket connections
+- Supports multiple rooms for different projects
+
+### Database Integration
+- **Supabase**: Primary database with PostgreSQL, Auth, and real-time features
+- **Local Storage Fallback**: Graceful degradation when Supabase unavailable
+- **RBAC**: Role-based access control with permission system
+
+## Development Rules
 - 개발이 끝나면 꼭 todo.md 파일을 업데이트 한다.
 - 스탭마다 끝날 때는 실행 가능한 상태로 만든다.
+- Both implementations should be kept in sync when adding new features
+- Use the legacy implementation for production, modern implementation for new development

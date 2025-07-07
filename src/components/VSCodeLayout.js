@@ -58,7 +58,7 @@ class VSCodeLayout {
         this.container.innerHTML = `
             <div class="vscode-layout" style="display: flex; height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; background-color: #252526; color: #cccccc;">
                 <div class="activity-bar-container" style="width: 48px; background-color: #2c2c2c; border-right: 1px solid #3e3e3e;"></div>
-                <div class="sidebar-container" style="display: flex; width: 240px; min-width: 120px; max-width: 600px; background-color: #252526; border-right: 1px solid #3e3e3e; position: relative;">
+                <div class="sidebar-container" style="display: flex; width: 280px; min-width: 200px; max-width: 400px; background-color: #252526; border-right: 1px solid #3e3e3e; position: relative;">
                     <div class="sidebar-content" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
                         <div class="explorer-container" data-view="explorer" style="flex: 1; overflow: auto;"></div>
                         <div class="search-container" data-view="search" style="display: none;">
@@ -88,8 +88,8 @@ class VSCodeLayout {
                     </div>
                     <div class="sidebar-resize-handle" style="width: 4px; background-color: transparent; cursor: col-resize; position: absolute; right: 0; top: 0; bottom: 0; z-index: 10;"></div>
                 </div>
-                <div class="editor-container" style="flex: 1; display: flex; flex-direction: column; background-color: #1e1e1e; overflow: hidden;">
-                    <div class="editor-content" style="flex: 1; position: relative;">
+                <div class="editor-container" style="flex: 1; display: flex; flex-direction: column; background-color: #1e1e1e; overflow: hidden; min-height: 0;">
+                    <div class="editor-content" style="flex: 1; position: relative; min-height: 0; display: flex; overflow: hidden;">
                         <!-- BPMN Editor will be inserted here -->
                     </div>
                 </div>
@@ -159,12 +159,25 @@ class VSCodeLayout {
         // Explorer callbacks
         this.explorer.setOnItemClick((item, event) => {
             console.log('Explorer item clicked:', item.label);
+            
+            // 다이어그램인 경우 단일 클릭으로도 열기
+            if (item.type === 'file' && (item.type === 'diagram' || item.diagramId)) {
+                console.log('🎯 Opening BPMN diagram via single click:', item.diagramId || item.label);
+                this.openBPMNDiagram(item);
+            }
+            
             this.accessibilityManager.announce(`${item.label} 선택됨`);
         });
 
         this.explorer.setOnItemDoubleClick((item, event) => {
-            if (item.type === 'file') {
-                this.openFile(item);
+            if (item.type === 'file' || item.type === 'diagram') {
+                // BPMN 다이어그램인 경우 직접 처리
+                if (item.type === 'diagram' || item.diagramId) {
+                    console.log('🎯 Opening BPMN diagram:', item.diagramId || item.label);
+                    this.openBPMNDiagram(item);
+                } else {
+                    this.openFile(item);
+                }
                 this.accessibilityManager.announce(`${item.label} 파일을 열었습니다`);
             }
         });
@@ -493,12 +506,13 @@ class VSCodeLayout {
     }
 
     loadBPMNFile(item, container) {
-        // This would integrate with your existing BPMN editor
         console.log('Loading BPMN file:', item.label);
         
-        // Example integration with existing BPMN editor
-        if (window.bpmnEditor) {
-            window.bpmnEditor.loadDiagram(item.resourceUri || item.label);
+        // BPMN 다이어그램인 경우 openBPMNDiagram 메서드 사용
+        if (item.type === 'diagram' || item.diagramId) {
+            this.openBPMNDiagram(item);
+        } else {
+            console.warn('Item is not a valid BPMN diagram:', item);
         }
     }
 
@@ -815,10 +829,15 @@ class VSCodeLayout {
         const folders = currentProject.folders || [];
         const diagrams = currentProject.diagrams || [];
         
-        // 루트 폴더들 (parent_id가 null인 폴더들)
-        const rootFolders = folders.filter(folder => !folder.parent_id);
-        // 루트 다이어그램들 (folder_id가 null인 다이어그램들) 
-        const rootDiagrams = diagrams.filter(diagram => !diagram.folder_id);
+        // 루트 폴더들 (parent_id가 null인 폴더들) - sort_order로 정렬
+        const rootFolders = folders
+            .filter(folder => !folder.parent_id)
+            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+        
+        // 루트 다이어그램들 (folder_id가 null인 다이어그램들) - sort_order로 정렬
+        const rootDiagrams = diagrams
+            .filter(diagram => !diagram.folder_id)
+            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
         
         // 폴더들을 트리에 추가 (재귀적으로)
         for (const folder of rootFolders) {
@@ -853,16 +872,23 @@ class VSCodeLayout {
         folderItem.folderId = folder.id;
         folderItem.description = folder.description;
         folderItem.tooltip = `폴더: ${folder.name}`;
+        folderItem.sortOrder = folder.sort_order || 0;
         
-        // 하위 폴더들 찾기
-        const childFolders = allFolders.filter(f => f.parent_id === folder.id);
+        // 하위 폴더들 찾기 (sort_order로 정렬)
+        const childFolders = allFolders
+            .filter(f => f.parent_id === folder.id)
+            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+        
         for (const childFolder of childFolders) {
             const childItem = await this.createFolderTreeItem(childFolder, allFolders, allDiagrams);
             folderItem.addChild(childItem);
         }
         
-        // 이 폴더 내의 다이어그램들 찾기
-        const folderDiagrams = allDiagrams.filter(d => d.folder_id === folder.id);
+        // 이 폴더 내의 다이어그램들 찾기 (sort_order로 정렬)
+        const folderDiagrams = allDiagrams
+            .filter(d => d.folder_id === folder.id)
+            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+        
         for (const diagram of folderDiagrams) {
             const diagramItem = await this.createDiagramTreeItem(diagram);
             folderItem.addChild(diagramItem);
@@ -884,6 +910,7 @@ class VSCodeLayout {
         diagramItem.tooltip = `BPMN 다이어그램: ${diagram.name}`;
         diagramItem.description = diagram.description;
         diagramItem.resourceUri = `bpmn://${diagram.id}`;
+        diagramItem.sortOrder = diagram.sort_order || 0;
         
         // 마지막 수정 시간 설정
         if (diagram.updated_at) {
@@ -906,16 +933,13 @@ class VSCodeLayout {
             }
         });
         
-        // Single click selection feedback
+        // Single click to open diagram for editing
         this.explorer.setOnItemClick((item, event) => {
             console.log('👆 Clicked item:', item.label);
-            if (item.type === 'file' && item.diagramData) {
-                // Show diagram info in status or somewhere
-                console.log('📊 Diagram info:', {
-                    name: item.diagramData.name,
-                    created: item.diagramData.created_at,
-                    modified: item.diagramData.updated_at
-                });
+            // 다이어그램인 경우 단일 클릭으로도 열기
+            if (item.type === 'file' && (item.diagramData || item.diagramId)) {
+                console.log('🎯 Opening BPMN diagram on single click:', item.diagramId || item.diagramData?.id);
+                this.openBPMNDiagram(item);
             }
         });
     }
@@ -973,14 +997,29 @@ class VSCodeLayout {
                     appManager.bpmnEditor.modeler.destroy();
                 }
                 await appManager.bpmnEditor.initializeModeler(bpmnContainer);
+                
+                // 다이어그램 데이터로 BPMN 에디터에 로드
+                await appManager.bpmnEditor.openDiagram({
+                    id: item.diagramData.id,
+                    name: item.diagramData.name,
+                    content: item.diagramData.bpmn_xml
+                });
+            } else {
+                // 이미 BPMN 에디터가 존재하는 경우 직접 다이어그램 로드
+                console.log('🔧 Using existing BPMN editor container');
+                
+                // 협업 모듈 재초기화 (프로젝트/다이어그램 변경 시)
+                if (appManager.bpmnEditor.collaborationModule && appManager.currentProject) {
+                    const newRoomId = `project-${appManager.currentProject.id}-diagram-${item.diagramData.id}`;
+                    await appManager.bpmnEditor.changeCollaborationRoom(newRoomId);
+                }
+                
+                await appManager.bpmnEditor.openDiagram({
+                    id: item.diagramData.id,
+                    name: item.diagramData.name,
+                    content: item.diagramData.bpmn_xml
+                });
             }
-            
-            // 다이어그램 데이터로 BPMN 에디터에 로드
-            await appManager.bpmnEditor.openDiagram({
-                id: item.diagramData.id,
-                name: item.diagramData.name,
-                content: item.diagramData.bpmn_xml
-            });
             
             console.log('✅ BPMN diagram opened successfully:', item.diagramData.name);
             

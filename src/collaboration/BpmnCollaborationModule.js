@@ -35,33 +35,55 @@ export class BpmnCollaborationModule {
    */
   async initialize(roomId, options = {}) {
     try {
-      // 협업 매니저 초기화
-      await collaborationManager.initialize(roomId, options.websocketUrl, options.userInfo);
+      console.log(`🔗 BPMN 협업 모듈 초기화 시도: 방 ${roomId}`);
       
-      // 공유 다이어그램 데이터 구조 설정
-      this.sharedDiagram = collaborationManager.getSharedMap('bpmn-diagram');
+      // 협업 매니저 초기화 (실패해도 계속 진행)
+      const collaborationEnabled = await collaborationManager.initialize(roomId, options.websocketUrl, options.userInfo);
       
-      // 초기 BPMN XML 데이터 설정
-      const currentXml = await this.getCurrentBpmnXml();
-      if (!this.sharedDiagram.has('xml')) {
-        this.sharedDiagram.set('xml', currentXml);
-      }
-      
-      // 이벤트 리스너 설정
-      this.setupEventListeners();
-      
-      // 커서 추적 설정
-      this.setupCursorTracking();
-      
-      // 초기 동기화 (원격 데이터가 있으면 로드)
-      const remoteXml = this.sharedDiagram.get('xml');
-      if (remoteXml && remoteXml !== currentXml) {
-        await this.syncFromRemote();
+      if (collaborationEnabled) {
+        console.log('✅ 실시간 협업 모드 활성화');
+        
+        // 공유 다이어그램 데이터 구조 설정
+        this.sharedDiagram = collaborationManager.getSharedMap('bpmn-diagram');
+        
+        // 초기 BPMN XML 데이터 설정
+        const currentXml = await this.getCurrentBpmnXml();
+        if (!this.sharedDiagram.has('xml')) {
+          this.sharedDiagram.set('xml', currentXml);
+        }
+        
+        // 이벤트 리스너 설정
+        this.setupEventListeners();
+        
+        // 커서 추적 설정
+        this.setupCursorTracking();
+        
+        // 초기 동기화 (원격 데이터가 있으면 로드)
+        const remoteXml = this.sharedDiagram.get('xml');
+        if (remoteXml && remoteXml !== currentXml) {
+          await this.syncFromRemote();
+        }
+      } else {
+        console.log('📝 오프라인 모드 - 협업 기능 비활성화');
+        
+        // 오프라인 모드에서는 더미 객체 생성
+        this.sharedDiagram = {
+          has: () => false,
+          get: () => null,
+          set: () => {},
+          delete: () => {},
+          observe: () => {},
+          unobserve: () => {}
+        };
+        
+        // 기본 이벤트 리스너만 설정
+        this.setupBasicEventListeners();
       }
       
       this.isInitialized = true;
+      this.collaborationEnabled = collaborationEnabled;
       
-      console.log(`🔄 BPMN 협업 모듈 초기화 완료: 방 ${roomId}`);
+      console.log(`✅ BPMN 협업 모듈 초기화 완료: 방 ${roomId} (협업: ${collaborationEnabled ? '활성화' : '비활성화'})`);
       
     } catch (error) {
       console.error('BPMN 협업 모듈 초기화 실패:', error);
@@ -73,6 +95,12 @@ export class BpmnCollaborationModule {
    * 이벤트 리스너를 설정합니다.
    */
   setupEventListeners() {
+    // 모델러가 존재하는지 확인
+    if (!this.modeler) {
+      console.warn('모델러가 초기화되지 않았습니다. 이벤트 리스너 설정을 건너뜁니다.');
+      return;
+    }
+
     // 로컬 BPMN 변경 감지
     this.modeler.on('commandStack.changed', (event) => {
       this.handleLocalChange(event);
@@ -95,6 +123,17 @@ export class BpmnCollaborationModule {
     // 충돌 해결 이벤트
     this.on('conflict', (event) => {
       this.handleConflict(event);
+    });
+  }
+
+  /**
+   * 기본 이벤트 리스너를 설정합니다. (오프라인 모드용)
+   */
+  setupBasicEventListeners() {
+    // 오프라인 모드에서는 로컬 변경만 감지
+    this.modeler.on('commandStack.changed', (event) => {
+      console.log('📝 로컬 다이어그램 변경 감지 (오프라인 모드)');
+      this.syncState.lastLocalChange = Date.now();
     });
   }
 
@@ -214,14 +253,17 @@ export class BpmnCollaborationModule {
    */
   async getCurrentBpmnXml() {
     try {
+      // 모델러가 존재하는지 확인
+      if (!this.modeler) {
+        console.warn('모델러가 초기화되지 않았습니다. 기본 BPMN XML을 반환합니다.');
+        return this.getDefaultBpmnXml();
+      }
+
       // 모델러에 정의가 로드되어 있는지 확인
       const definitions = this.modeler.getDefinitions();
       if (!definitions) {
         // 정의가 없으면 기본 BPMN XML 반환
-        return '<?xml version="1.0" encoding="UTF-8"?>\n' +
-               '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">\n' +
-               '  <bpmn:process id="Process_1" isExecutable="true" />\n' +
-               '</bpmn:definitions>';
+        return this.getDefaultBpmnXml();
       }
       
       const result = await this.modeler.saveXML({ format: true });
@@ -229,11 +271,19 @@ export class BpmnCollaborationModule {
     } catch (error) {
       console.error('BPMN XML 가져오기 실패:', error);
       // 실패 시 기본 BPMN XML 반환
-      return '<?xml version="1.0" encoding="UTF-8"?>\n' +
-             '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">\n' +
-             '  <bpmn:process id="Process_1" isExecutable="true" />\n' +
-             '</bpmn:definitions>';
+      return this.getDefaultBpmnXml();
     }
+  }
+
+  /**
+   * 기본 BPMN XML을 반환합니다.
+   * @returns {string} 기본 BPMN XML 문자열
+   */
+  getDefaultBpmnXml() {
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' +
+           '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">\n' +
+           '  <bpmn:process id="Process_1" isExecutable="true" />\n' +
+           '</bpmn:definitions>';
   }
 
   /**

@@ -6,11 +6,17 @@ import { supabase } from './supabase.js';
 export class DatabaseManager {
   constructor() {
     this.supabase = supabase;
-    // 개발 중 강제 로컬 모드 (환경 변수로 제어 가능)
-    this.forceLocalMode = localStorage.getItem('bpmn_force_local') === 'true';
+    // 개발 중 강제 로컬 모드 (Supabase RLS 정책 문제 우회)
+    this.forceLocalMode = localStorage.getItem('bpmn_force_local') === 'true' || !supabase;
+    
+    console.log('🔧 DatabaseManager initialized');
+    console.log('🔧 Supabase object:', !!supabase);
+    console.log('🔧 Force local flag:', localStorage.getItem('bpmn_force_local'));
+    console.log('🔧 Final forceLocalMode:', this.forceLocalMode);
     
     if (this.forceLocalMode) {
-      console.log('🔧 Force local mode enabled - using localStorage');
+      console.log('🔧 Force local mode enabled - using localStorage (RLS bypass)');
+      console.log('💡 To enable database mode, run: window.disableLocalMode()');
     } else {
       console.log('🌐 Database mode enabled - using Supabase');
     }
@@ -81,7 +87,8 @@ export class DatabaseManager {
    * 프로젝트 생성
    */
   async createProject(projectData) {
-    console.log('Creating project with data:', projectData);
+    console.log('🎯 DatabaseManager.createProject called with:', projectData);
+    console.log('🎯 Current mode:', this.forceLocalMode ? 'LOCAL' : 'DATABASE');
     
     // 강제 로컬 모드이거나 데이터베이스 연결 실패 시 로컬 스토리지 사용
     if (this.forceLocalMode) {
@@ -183,23 +190,68 @@ export class DatabaseManager {
     }
 
     try {
-      const { data, error } = await this.supabase
+      // First, get projects owned by the user (direct ownership)
+      const { data: ownedProjects, error: ownedError } = await this.supabase
         .from('projects')
         .select(`
           *,
-          project_members!inner(role),
           owner:profiles!projects_owner_id_fkey(display_name, email)
         `)
-        .eq('project_members.user_id', userId)
+        .eq('owner_id', userId)
         .order('updated_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching user projects, using local fallback:', error);
+      if (ownedError) {
+        console.error('Error fetching owned projects, using local fallback:', ownedError);
         return this.getUserProjectsLocal(userId);
       }
 
-      console.log('✅ Loaded projects from database:', data.length);
-      return { data, error: null };
+      // Get member project IDs first
+      const { data: membershipData, error: membershipError } = await this.supabase
+        .from('project_members')
+        .select('project_id')
+        .eq('user_id', userId)
+        .eq('status', 'accepted');
+
+      if (membershipError) {
+        console.warn('Error fetching memberships, using only owned projects:', membershipError);
+        return { data: ownedProjects || [], error: null };
+      }
+
+      const memberProjectIds = membershipData?.map(m => m.project_id) || [];
+      
+      // If no member projects, return only owned projects
+      if (memberProjectIds.length === 0) {
+        console.log('✅ Loaded projects from database (owned only):', ownedProjects?.length || 0);
+        return { data: ownedProjects || [], error: null };
+      }
+
+      // Get member projects (excluding owned ones)
+      const ownedProjectIds = ownedProjects?.map(p => p.id) || [];
+      const memberOnlyIds = memberProjectIds.filter(id => !ownedProjectIds.includes(id));
+
+      let memberProjects = [];
+      if (memberOnlyIds.length > 0) {
+        const { data: memberProjectsData, error: memberError } = await this.supabase
+          .from('projects')
+          .select(`
+            *,
+            owner:profiles!projects_owner_id_fkey(display_name, email)
+          `)
+          .in('id', memberOnlyIds)
+          .order('updated_at', { ascending: false });
+
+        if (memberError) {
+          console.warn('Error fetching member projects:', memberError);
+        } else {
+          memberProjects = memberProjectsData || [];
+        }
+      }
+
+      // Combine owned and member projects
+      const allProjects = [...(ownedProjects || []), ...memberProjects];
+      
+      console.log('✅ Loaded projects from database:', allProjects.length, `(${ownedProjects?.length || 0} owned, ${memberProjects.length} member)`);
+      return { data: allProjects, error: null };
     } catch (error) {
       console.error('User projects fetch error, using local fallback:', error);
       return this.getUserProjectsLocal(userId);
@@ -449,9 +501,11 @@ export class DatabaseManager {
   getProjectDiagramsLocal(projectId) {
     try {
       const diagrams = JSON.parse(localStorage.getItem('bpmn_diagrams') || '[]');
-      const projectDiagrams = diagrams.filter(diagram => 
-        diagram.project_id === projectId && diagram.is_active !== false
-      );
+      const projectDiagrams = diagrams
+        .filter(diagram => 
+          diagram.project_id === projectId && diagram.is_active !== false
+        )
+        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
       
       console.log('✅ Loaded diagrams from local storage:', projectDiagrams.length);
       return { data: projectDiagrams, error: null };
@@ -465,7 +519,11 @@ export class DatabaseManager {
    * 다이어그램 생성 (개선된 버전)
    */
   async createDiagram(diagramData) {
+    console.log('🎯 DatabaseManager.createDiagram called with:', diagramData);
+    console.log('🎯 Current mode:', this.forceLocalMode ? 'LOCAL' : 'DATABASE');
+    
     if (this.forceLocalMode) {
+      console.log('🔧 Using forced local mode for diagram creation');
       return this.createDiagramLocal(diagramData);
     }
 
@@ -595,11 +653,11 @@ export class DatabaseManager {
    * 폴더 생성
    */
   async createFolder(folderData) {
-    console.log('DatabaseManager.createFolder called with:', folderData);
-    console.log('DatabaseManager state:', {
+    console.log('🎯 DatabaseManager.createFolder called with:', folderData);
+    console.log('🎯 DatabaseManager state:', {
       hasSupabase: !!this.supabase,
       forceLocalMode: this.forceLocalMode,
-      isConnected: this.isConnected
+      currentMode: this.forceLocalMode ? 'LOCAL' : 'DATABASE'
     });
     
     if (this.forceLocalMode) {
@@ -718,7 +776,9 @@ export class DatabaseManager {
   getProjectFoldersLocal(projectId) {
     try {
       const folders = JSON.parse(localStorage.getItem('bpmn_folders') || '[]');
-      const projectFolders = folders.filter(folder => folder.project_id === projectId);
+      const projectFolders = folders
+        .filter(folder => folder.project_id === projectId)
+        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
       
       return { data: projectFolders, error: null };
     } catch (error) {
@@ -747,20 +807,25 @@ export class DatabaseManager {
    * 폴더 삭제
    */
   async deleteFolder(folderId) {
-    if (this.supabase) {
-      try {
-        const { data, error } = await this.supabase
-          .from('folders')
-          .delete()
-          .eq('id', folderId)
-          .select();
+    if (this.forceLocalMode) {
+      return this.deleteFolderLocal(folderId);
+    }
 
-        return { data, error };
-      } catch (error) {
-        console.error('Delete folder error:', error);
+    try {
+      const { data, error } = await this.supabase
+        .from('folders')
+        .delete()
+        .eq('id', folderId)
+        .select();
+
+      if (error) {
+        console.error('Delete folder error, using local fallback:', error);
         return this.deleteFolderLocal(folderId);
       }
-    } else {
+
+      return { data, error: null };
+    } catch (error) {
+      console.error('Folder deletion error, using local fallback:', error);
       return this.deleteFolderLocal(folderId);
     }
   }
@@ -907,6 +972,176 @@ export class DatabaseManager {
       return { data: null, error };
     }
   }
+
+
+
+  /**
+   * 로컬 스토리지에서 다이어그램 업데이트
+   */
+  updateDiagramLocal(diagramId, updates) {
+    try {
+      const diagrams = JSON.parse(localStorage.getItem('bpmn_diagrams') || '[]');
+      const diagramIndex = diagrams.findIndex(d => d.id === diagramId);
+      
+      if (diagramIndex === -1) {
+        return { data: null, error: { message: 'Diagram not found' } };
+      }
+      
+      diagrams[diagramIndex] = {
+        ...diagrams[diagramIndex],
+        ...updates,
+        updated_at: new Date().toISOString()
+      };
+      
+      localStorage.setItem('bpmn_diagrams', JSON.stringify(diagrams));
+      
+      console.log('✅ Diagram updated locally:', diagrams[diagramIndex]);
+      return { data: diagrams[diagramIndex], error: null };
+    } catch (error) {
+      console.error('Local diagram update error:', error);
+      return { data: null, error };
+    }
+  }
+
+  /**
+   * 다이어그램 삭제
+   */
+  async deleteDiagram(diagramId) {
+    if (this.forceLocalMode) {
+      return this.deleteDiagramLocal(diagramId);
+    }
+
+    if (this.supabase) {
+      try {
+        const { data, error } = await this.supabase
+          .from('diagrams')
+          .delete()
+          .eq('id', diagramId)
+          .select();
+
+        if (error) {
+          console.error('Supabase diagram delete error, falling back to local:', error);
+          return this.deleteDiagramLocal(diagramId);
+        }
+
+        return { data, error: null };
+      } catch (error) {
+        console.error('Delete diagram error, falling back to local:', error);
+        return this.deleteDiagramLocal(diagramId);
+      }
+    } else {
+      return this.deleteDiagramLocal(diagramId);
+    }
+  }
+
+  /**
+   * 로컬 스토리지에서 다이어그램 삭제
+   */
+  deleteDiagramLocal(diagramId) {
+    try {
+      const diagrams = JSON.parse(localStorage.getItem('bpmn_diagrams') || '[]');
+      const updatedDiagrams = diagrams.filter(diagram => diagram.id !== diagramId);
+      
+      localStorage.setItem('bpmn_diagrams', JSON.stringify(updatedDiagrams));
+      
+      console.log('✅ Diagram deleted locally:', diagramId);
+      return { data: { id: diagramId }, error: null };
+    } catch (error) {
+      console.error('Local diagram deletion error:', error);
+      return { data: null, error };
+    }
+  }
+
+  /**
+   * 여러 항목의 순서를 일괄 업데이트
+   */
+  async updateItemOrder(items) {
+    if (this.forceLocalMode) {
+      return this.updateItemOrderLocal(items);
+    }
+
+    try {
+      const updates = [];
+      
+      for (const item of items) {
+        if (item.type === 'folder') {
+          updates.push(
+            this.supabase
+              .from('folders')
+              .update({ 
+                sort_order: item.sortOrder,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', item.folderId)
+          );
+        } else if (item.type === 'diagram') {
+          updates.push(
+            this.supabase
+              .from('diagrams')
+              .update({ 
+                sort_order: item.sortOrder,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', item.diagramId)
+          );
+        }
+      }
+
+      // 모든 업데이트를 병렬로 실행
+      const results = await Promise.all(updates);
+      
+      // 에러 확인
+      for (const result of results) {
+        if (result.error) {
+          console.error('Order update error:', result.error);
+          return this.updateItemOrderLocal(items);
+        }
+      }
+
+      console.log('✅ Item order updated in database');
+      return { success: true, error: null };
+
+    } catch (error) {
+      console.error('Item order update error, using local fallback:', error);
+      return this.updateItemOrderLocal(items);
+    }
+  }
+
+  /**
+   * 로컬 스토리지에서 순서 업데이트
+   */
+  updateItemOrderLocal(items) {
+    try {
+      const folders = JSON.parse(localStorage.getItem('bpmn_folders') || '[]');
+      const diagrams = JSON.parse(localStorage.getItem('bpmn_diagrams') || '[]');
+
+      for (const item of items) {
+        if (item.type === 'folder') {
+          const folderIndex = folders.findIndex(f => f.id === item.folderId);
+          if (folderIndex !== -1) {
+            folders[folderIndex].sort_order = item.sortOrder;
+            folders[folderIndex].updated_at = new Date().toISOString();
+          }
+        } else if (item.type === 'diagram') {
+          const diagramIndex = diagrams.findIndex(d => d.id === item.diagramId);
+          if (diagramIndex !== -1) {
+            diagrams[diagramIndex].sort_order = item.sortOrder;
+            diagrams[diagramIndex].updated_at = new Date().toISOString();
+          }
+        }
+      }
+
+      localStorage.setItem('bpmn_folders', JSON.stringify(folders));
+      localStorage.setItem('bpmn_diagrams', JSON.stringify(diagrams));
+
+      console.log('✅ Item order updated locally');
+      return { success: true, error: null };
+
+    } catch (error) {
+      console.error('Local order update error:', error);
+      return { success: false, error };
+    }
+  }
 }
 
 // 싱글톤 인스턴스
@@ -917,11 +1152,44 @@ export const testDatabaseConnection = () => dbManager.testConnection();
 export const createProject = (projectData) => dbManager.createProject(projectData);
 export const getUserProjects = (userId) => dbManager.getUserProjects(userId);
 export const createDiagram = (diagramData) => dbManager.createDiagram(diagramData);
-export const updateDiagram = (diagramId, updates) => dbManager.updateDiagram(diagramId, updates);
+export const updateDiagram = (updateData) => dbManager.updateDiagram(updateData);
 export const getDiagram = (diagramId) => dbManager.getDiagram(diagramId);
 export const getProjectDiagrams = (projectId) => dbManager.getProjectDiagrams(projectId);
 export const createFolder = (folderData) => dbManager.createFolder(folderData);
 export const getProjectFolders = (projectId) => dbManager.getProjectFolders(projectId);
 export const deleteFolder = (folderId) => dbManager.deleteFolder(folderId);
 export const renameFolder = (folderId, newName) => dbManager.renameFolder(folderId, newName);
-export const updateFolder = (folderId, updates) => dbManager.updateFolder(folderId, updates);
+export const updateFolder = (updateData) => dbManager.updateFolder(updateData);
+export const deleteDiagram = (diagramId) => dbManager.deleteDiagram(diagramId);
+export const updateItemOrder = (items) => dbManager.updateItemOrder(items);
+
+// 개발자 도구용 전역 함수들
+window.enableLocalMode = () => {
+  localStorage.setItem('bpmn_force_local', 'true');
+  console.log('🔧 Local mode enabled. Please refresh the page.');
+  location.reload();
+};
+
+window.disableLocalMode = () => {
+  localStorage.removeItem('bpmn_force_local');
+  console.log('🌐 Database mode enabled. Please refresh the page.');
+  location.reload();
+};
+
+window.clearLocalData = () => {
+  ['bpmn_projects', 'bpmn_folders', 'bpmn_diagrams', 'bpmn_users'].forEach(key => {
+    localStorage.removeItem(key);
+  });
+  console.log('🧹 Local data cleared.');
+};
+
+window.checkDatabaseStatus = () => {
+  console.log('=== DATABASE STATUS ===');
+  console.log('Force local mode:', window.dbManager?.forceLocalMode);
+  console.log('Has Supabase client:', !!window.dbManager?.supabase);
+  console.log('Local storage flag:', localStorage.getItem('bpmn_force_local'));
+  console.log('Local projects count:', JSON.parse(localStorage.getItem('bpmn_projects') || '[]').length);
+  console.log('Local folders count:', JSON.parse(localStorage.getItem('bpmn_folders') || '[]').length);
+  console.log('Local diagrams count:', JSON.parse(localStorage.getItem('bpmn_diagrams') || '[]').length);
+  console.log('========================');
+};

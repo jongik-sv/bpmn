@@ -4,11 +4,13 @@
  */
 
 import TreeDataProvider from './TreeDataProvider.js';
+import ContextMenu from './ContextMenu.js';
 
 class Explorer {
     constructor(container) {
         this.container = container;
         this.dataProvider = new TreeDataProvider();
+        this.contextMenu = new ContextMenu();
         this.virtualScrolling = false; // Can be enabled for large datasets
         this.selectedItem = null;
         this.focusedItem = null;
@@ -47,8 +49,22 @@ class Explorer {
         
         this.attachEventListeners();
         this.setupAccessibility();
+        this.setupContextMenu();
         
         console.log('✅ Explorer initialized');
+    }
+    
+    getProjectName() {
+        try {
+            const appManager = window.appManager;
+            if (appManager && appManager.currentProject && appManager.currentProject.name) {
+                return appManager.currentProject.name;
+            }
+            return null;
+        } catch (error) {
+            console.warn('Could not get project name:', error);
+            return null;
+        }
     }
 
     setupDataProvider() {
@@ -61,11 +77,17 @@ class Explorer {
     }
 
     render() {
+        // 프로젝트 이름 가져오기
+        const projectName = this.getProjectName();
+        
         this.container.innerHTML = `
             <div class="explorer-panel" style="height: 100%; display: flex; flex-direction: column; background-color: #252526; color: #cccccc;">
                 <div class="explorer-header" style="padding: 8px 16px; border-bottom: 1px solid #3e3e3e; background-color: #252526;">
                     <div class="explorer-title" style="display: flex; justify-content: space-between; align-items: center;">
-                        <h3 style="margin: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #cccccc; letter-spacing: 1px;">탐색기</h3>
+                        <div style="display: flex; flex-direction: column;">
+                            <h3 style="margin: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #cccccc; letter-spacing: 1px;">탐색기</h3>
+                            ${projectName ? `<span style="font-size: 12px; color: #999999; margin-top: 2px; font-weight: 400;">${projectName}</span>` : ''}
+                        </div>
                         <div class="explorer-actions" style="display: flex; gap: 4px;">
                             <button class="action-button" title="새 다이어그램 (BPMN 파일)" data-action="new-file" style="width: 24px; height: 24px; border: 1px solid #555; background-color: #404040; color: #ffffff; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-size: 14px;">
                                 📄
@@ -117,10 +139,20 @@ class Explorer {
         
         console.log('🌲 Root children:', root.children?.length || 0, root.children);
         
-        // Start with root's children, not root itself
+        // Start with root's children, sorted properly
         const visibleNodes = [];
         if (root.children && root.children.length > 0) {
-            for (const child of root.children) {
+            // Sort root children: folders first, then files, both alphabetically
+            const sortedChildren = [...root.children].sort((a, b) => {
+                // Folders first
+                if (a.type === 'folder' && b.type !== 'folder') return -1;
+                if (a.type !== 'folder' && b.type === 'folder') return 1;
+                
+                // Then alphabetically (Korean-aware)
+                return a.label.localeCompare(b.label, 'ko', { numeric: true, sensitivity: 'base' });
+            });
+            
+            for (const child of sortedChildren) {
                 visibleNodes.push(child);
                 if (child.isExpanded && child.children && child.children.length > 0) {
                     this.addChildrenToVisible(child, visibleNodes);
@@ -157,7 +189,17 @@ class Explorer {
     }
     
     addChildrenToVisible(parent, visibleNodes) {
-        for (const child of parent.children) {
+        // Sort children before adding to visible nodes
+        const sortedChildren = [...parent.children].sort((a, b) => {
+            // Folders first
+            if (a.type === 'folder' && b.type !== 'folder') return -1;
+            if (a.type !== 'folder' && b.type === 'folder') return 1;
+            
+            // Then alphabetically (Korean-aware)
+            return a.label.localeCompare(b.label, 'ko', { numeric: true, sensitivity: 'base' });
+        });
+        
+        for (const child of sortedChildren) {
             visibleNodes.push(child);
             if (child.isExpanded && child.children && child.children.length > 0) {
                 this.addChildrenToVisible(child, visibleNodes);
@@ -190,7 +232,7 @@ class Explorer {
                  aria-expanded="${canExpand ? item.isExpanded : undefined}"
                  aria-selected="${isSelected}"
                  tabindex="-1"
-                 style="display: flex; align-items: center; height: 22px; padding-left: ${depth * 16 + 8}px; cursor: pointer; color: #cccccc; user-select: none; ${isSelected ? 'background-color: #37373d;' : ''}"
+                 style="display: flex; align-items: center; height: 22px; padding-left: ${depth * 16 + 8}px; cursor: pointer; color: #cccccc; user-select: none; position: relative; ${isSelected ? 'background-color: #37373d;' : ''}"
                  draggable="true">
                 
                 <div class="tree-item-content" style="display: flex; align-items: center; flex: 1; min-width: 0;">
@@ -498,6 +540,13 @@ class Explorer {
         const item = this.dataProvider.findNodeById(itemId);
         if (!item) return;
 
+        // Select the item before showing context menu
+        this.selectItem(item, false);
+        this.setFocusedItem(item);
+
+        // Show context menu
+        this.contextMenu.show(item, event.clientX, event.clientY);
+
         if (this.onContextMenu) {
             this.onContextMenu(item, event);
         }
@@ -606,15 +655,35 @@ class Explorer {
             dragOverItems.forEach(item => item.classList.remove('drag-over'));
         });
 
-        treeView.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-        });
 
         treeView.addEventListener('dragenter', (e) => {
             const treeItem = e.target.closest('.tree-item');
-            if (treeItem && treeItem.dataset.itemType === 'folder') {
-                treeItem.classList.add('drag-over');
+            if (treeItem) {
+                const itemId = treeItem.dataset.itemId;
+                const item = this.dataProvider.findNodeById(itemId);
+                
+                // 폴더이거나 파일인 경우 드롭 인디케이터 업데이트
+                if (item && (item.type === 'folder' || item.type === 'file' || item.type === 'diagram')) {
+                    this.updateDropIndicators(e);
+                }
+            }
+        });
+
+        // 마우스 이동 시 드롭 인디케이터 업데이트
+        treeView.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            const treeItem = e.target.closest('.tree-item');
+            if (treeItem && this.draggedItem) {
+                this.updateDropIndicators(e);
+            }
+            
+            // 빈 영역에 대한 드래그오버 효과 추가
+            if (!treeItem && e.target === treeView) {
+                treeView.classList.add('drag-over-root');
+            } else {
+                treeView.classList.remove('drag-over-root');
             }
         });
 
@@ -629,18 +698,59 @@ class Explorer {
             e.preventDefault();
             
             const treeItem = e.target.closest('.tree-item');
-            if (treeItem && this.draggedItem) {
+            
+            // 빈 영역에 드롭한 경우 (루트로 이동)
+            if (!treeItem && this.draggedItem) {
+                console.log('📁 Moving to root folder');
+                this.moveItem(this.draggedItem, this.dataProvider.root);
+                treeView.classList.remove('drag-over-root');
+            } else if (treeItem && this.draggedItem) {
                 const targetItemId = treeItem.dataset.itemId;
                 const targetItem = this.dataProvider.findNodeById(targetItemId);
                 
-                if (targetItem && targetItem.type === 'folder' && targetItem !== this.draggedItem) {
-                    this.moveItem(this.draggedItem, targetItem);
+                if (targetItem && targetItem !== this.draggedItem) {
+                    // 드롭 위치 확인 (위, 아래, 또는 안쪽)
+                    const dropPosition = this.getDropPosition(treeItem);
+                    console.log('📍 Drop position:', dropPosition, 'on item:', targetItem.label);
+                    
+                    if (dropPosition === 'into' && targetItem.type === 'folder') {
+                        // 폴더 안으로 이동
+                        console.log('📁 Moving into folder:', targetItem.label);
+                        this.moveItem(this.draggedItem, targetItem);
+                    } else if (dropPosition === 'before' || dropPosition === 'after') {
+                        // 같은 레벨에서 순서 변경 또는 폴더간 이동
+                        console.log('🔄 Reordering at same level:', dropPosition, targetItem.label);
+                        
+                        // 같은 부모인 경우에만 재정렬, 다른 부모인 경우 폴더 이동
+                        if (this.draggedItem.parent === targetItem.parent) {
+                            this.reorderItem(this.draggedItem, targetItem, dropPosition);
+                        } else {
+                            // 폴더간 이동: 타겟 아이템의 부모 폴더로 이동
+                            const targetFolder = targetItem.parent || this.dataProvider.root;
+                            console.log('📁 Moving to different folder:', targetFolder.label || 'root');
+                            this.moveItem(this.draggedItem, targetFolder);
+                        }
+                    } else {
+                        // 기본 폴더 이동 로직 (파일에 드롭한 경우)
+                        let targetFolder = targetItem;
+                        
+                        if (targetItem.type === 'file' || targetItem.type === 'diagram') {
+                            targetFolder = targetItem.parent || this.dataProvider.root;
+                        }
+                        
+                        if (targetFolder && targetFolder !== this.draggedItem) {
+                            console.log('📁 Moving to parent folder:', targetFolder.label || 'root');
+                            this.moveItem(this.draggedItem, targetFolder);
+                        }
+                    }
                 }
             }
             
-            // Clean up drag-over styles
-            const dragOverItems = this.container.querySelectorAll('.drag-over');
-            dragOverItems.forEach(item => item.classList.remove('drag-over'));
+            // Clean up drag-over styles and position indicators
+            this.clearDragOverStyles();
+            
+            // 드래그 위치 상태 초기화
+            this.lastDropPosition = null;
         });
     }
 
@@ -654,12 +764,18 @@ class Explorer {
                 e.preventDefault();
                 this.toggleSearch();
             }
+            // Global search (Ctrl+Shift+F)
+            if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+                e.preventDefault();
+                this.toggleGlobalSearch();
+            }
         });
 
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
                 this.searchTerm = e.target.value;
-                this.performSearch();
+                // Use global search for more comprehensive results
+                this.performGlobalSearch(this.searchTerm);
             });
 
             searchInput.addEventListener('keydown', (e) => {
@@ -685,6 +801,64 @@ class Explorer {
         
         // Note: We don't set the callback here since it's already set in setupDataProvider()
         // The existing callback will handle both tree refresh and accessibility updates
+    }
+
+    setupContextMenu() {
+        console.log('📍 Setting up context menu...');
+        
+        // Set context menu action handler
+        this.contextMenu.setOnAction((action, item) => {
+            this.handleContextMenuAction(action, item);
+        });
+        
+        console.log('✅ Context menu setup complete');
+    }
+
+    handleContextMenuAction(action, item) {
+        console.log('📋 Context menu action:', action, 'for item:', item.label);
+        
+        switch (action) {
+            case 'open':
+                if (this.onItemDoubleClick) {
+                    this.onItemDoubleClick(item);
+                }
+                break;
+            case 'new-file':
+                this.createNewFile(item);
+                break;
+            case 'new-folder':
+                this.createNewFolder(item);
+                break;
+            case 'rename':
+                this.renameItem(item);
+                break;
+            case 'delete':
+                this.deleteItem(item);
+                break;
+            case 'cut':
+                this.cutItem(item);
+                break;
+            case 'copy':
+                this.copyItem(item);
+                break;
+            case 'paste':
+                this.pasteItem(item);
+                break;
+            case 'export':
+                this.exportItem(item);
+                break;
+            case 'properties':
+                this.showProperties(item);
+                break;
+            case 'collapse-all':
+                this.collapseAll();
+                break;
+            case 'refresh':
+                this.refreshProjectData();
+                break;
+            default:
+                console.log('🔍 Unknown context menu action:', action);
+        }
     }
 
     updateAriaProperties() {
@@ -747,6 +921,130 @@ class Explorer {
         this.searchTerm = '';
         this.filterMode = false;
         this.refreshTree();
+    }
+
+    toggleGlobalSearch() {
+        console.log('🔍 Toggling global search (Ctrl+Shift+F)');
+        
+        // First, ensure the search input is visible
+        const searchContainer = this.container.querySelector('.explorer-search');
+        const searchInput = this.container.querySelector('.search-input');
+        
+        if (searchContainer.style.display === 'none') {
+            searchContainer.style.display = 'block';
+        }
+        
+        // Focus on the search input
+        if (searchInput) {
+            searchInput.focus();
+            searchInput.select(); // Select all text if any
+        }
+        
+        // Show a tooltip or hint about global search
+        this.showGlobalSearchHint();
+    }
+
+    showGlobalSearchHint() {
+        const searchInput = this.container.querySelector('.search-input');
+        if (searchInput) {
+            const originalPlaceholder = searchInput.placeholder;
+            searchInput.placeholder = '전체 검색 (Ctrl+Shift+F) - 파일명과 내용 검색...';
+            
+            // Reset placeholder after 3 seconds
+            setTimeout(() => {
+                searchInput.placeholder = originalPlaceholder;
+            }, 3000);
+        }
+    }
+
+    performGlobalSearch(searchTerm) {
+        console.log('🔍 Performing global search for:', searchTerm);
+        
+        if (!searchTerm || searchTerm.trim() === '') {
+            this.clearSearch();
+            return;
+        }
+
+        const trimmedTerm = searchTerm.trim().toLowerCase();
+        this.filterMode = true;
+        
+        try {
+            const appManager = window.appManager;
+            if (!appManager || !appManager.currentProject) {
+                console.log('❌ No project data available for search');
+                return;
+            }
+
+            const { folders, diagrams } = appManager.currentProject;
+            const results = [];
+
+            // Search in folder names
+            folders.forEach(folder => {
+                if (folder.name.toLowerCase().includes(trimmedTerm)) {
+                    results.push({
+                        type: 'folder',
+                        item: folder,
+                        matchType: 'name'
+                    });
+                }
+            });
+
+            // Search in diagram names and content
+            diagrams.forEach(diagram => {
+                const nameMatch = diagram.name.toLowerCase().includes(trimmedTerm);
+                const contentMatch = diagram.bpmn_xml && 
+                                   diagram.bpmn_xml.toLowerCase().includes(trimmedTerm);
+
+                if (nameMatch || contentMatch) {
+                    results.push({
+                        type: 'diagram',
+                        item: diagram,
+                        matchType: nameMatch ? 'name' : 'content'
+                    });
+                }
+            });
+
+            console.log(`🔍 Global search found ${results.length} results`);
+            
+            if (results.length === 0) {
+                console.log('📝 No search results found');
+                // Still perform the regular search to update UI
+                this.performSearch();
+                return;
+            }
+
+            // Expand folders containing results
+            results.forEach(result => {
+                const item = result.item;
+                
+                if (result.type === 'folder') {
+                    // Expand the folder itself
+                    const treeNode = this.dataProvider.findNodeById(item.id);
+                    if (treeNode) {
+                        this.dataProvider.expandNode(treeNode);
+                    }
+                } else if (result.type === 'diagram') {
+                    // Expand the parent folder
+                    if (item.folder_id) {
+                        const parentFolder = folders.find(f => f.id === item.folder_id);
+                        if (parentFolder) {
+                            const treeNode = this.dataProvider.findNodeById(parentFolder.id);
+                            if (treeNode) {
+                                this.dataProvider.expandNode(treeNode);
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Perform the regular search to update highlighting
+            this.performSearch();
+
+        } catch (error) {
+            console.error('❌ Error performing global search:', error);
+            // Fallback to regular search
+            this.performSearch();
+        }
     }
 
     async createNewFile(parentFolder = null) {
@@ -974,22 +1272,416 @@ class Explorer {
         }
     }
 
-    renameItem(item) {
-        // Implement rename logic
-        console.log('Renaming item:', item.label);
-    }
-
-    deleteItem(item) {
-        // Implement delete logic
-        console.log('Deleting item:', item.label);
-    }
-
-    moveItem(item, newParent) {
-        if (item.parent) {
-            item.parent.removeChild(item);
+    checkDuplicateNameForRename(name, type, parentItem, currentItem) {
+        try {
+            const appManager = window.appManager;
+            if (!appManager || !appManager.currentProject) {
+                return false;
+            }
+            
+            const { folders, diagrams } = appManager.currentProject;
+            
+            // 부모 폴더 ID 확인
+            let parentId = null;
+            if (parentItem && parentItem.folderId) {
+                parentId = parentItem.folderId;
+            }
+            
+            if (type === 'folder') {
+                // 같은 부모 폴더 내에서 중복 폴더명 확인 (자기 자신 제외)
+                return folders.some(folder => 
+                    folder.name === name && 
+                    folder.parent_id === parentId && 
+                    folder.id !== currentItem.folderId
+                );
+            } else if (type === 'diagram') {
+                // 같은 폴더 내에서 중복 다이어그램명 확인 (자기 자신 제외)
+                return diagrams.some(diagram => 
+                    diagram.name === name && 
+                    diagram.folder_id === parentId && 
+                    diagram.id !== currentItem.diagramId
+                );
+            }
+            
+            return false;
+        } catch (error) {
+            console.error('❌ Error checking duplicate name for rename:', error);
+            return false;
         }
-        newParent.addChild(item);
-        this.dataProvider.refresh();
+    }
+
+    async renameItem(item) {
+        try {
+            console.log('📝 Renaming item:', item.label, 'type:', item.type);
+            
+            // 현재 이름을 기본값으로 하여 새 이름 입력받기
+            let newName;
+            let attempt = 0;
+            do {
+                newName = prompt('새 이름을 입력하세요:', item.label);
+                
+                if (!newName || !newName.trim()) {
+                    return; // 취소 또는 빈 이름
+                }
+                
+                newName = newName.trim();
+                
+                // 이름이 기존과 같으면 변경하지 않음
+                if (newName === item.label) {
+                    return;
+                }
+                
+                // 중복 확인 (자기 자신은 제외)
+                if (this.checkDuplicateNameForRename(newName, item.type, item.parent, item)) {
+                    alert(`"${newName}" 이름의 ${item.type === 'folder' ? '폴더' : '다이어그램'}가 이미 존재합니다. 다른 이름을 입력해주세요.`);
+                    attempt++;
+                    newName = null; // 루프 계속
+                }
+            } while (!newName && attempt < 10);
+            
+            if (!newName) {
+                return; // 너무 많은 시도 후 포기
+            }
+            
+            const appManager = window.appManager;
+            if (!appManager || !appManager.currentProject) {
+                console.error('❌ AppManager or current project not found');
+                return;
+            }
+            
+            const { dbManager } = await import('../lib/database.js');
+            let result;
+            
+            if (item.type === 'folder') {
+                // 폴더 이름 변경
+                const folderData = {
+                    id: item.folderId,
+                    name: newName
+                };
+                result = await dbManager.updateFolder(folderData);
+            } else {
+                // 다이어그램 이름 변경
+                const diagramData = {
+                    id: item.diagramId,
+                    name: newName
+                };
+                result = await dbManager.updateDiagram(diagramData);
+            }
+            
+            if (result.error) {
+                console.error('❌ Failed to rename item:', result.error);
+                alert(`${item.type === 'folder' ? '폴더' : '다이어그램'} 이름 변경에 실패했습니다.`);
+                return;
+            }
+            
+            console.log('✅ Item renamed successfully:', result.data);
+            
+            // 프로젝트 데이터 새로고침 후 트리 업데이트
+            await this.refreshProjectData();
+            
+            // 현재 열린 다이어그램이 이름 변경된 다이어그램인 경우 에디터 제목 업데이트
+            if (item.type === 'diagram' && appManager.bpmnEditor && appManager.bpmnEditor.currentDiagram) {
+                if (appManager.bpmnEditor.currentDiagram.id === item.diagramId) {
+                    appManager.bpmnEditor.currentDiagram.name = newName;
+                    appManager.bpmnEditor.updateEditorTitle();
+                }
+            }
+            
+        } catch (error) {
+            console.error('❌ Error renaming item:', error);
+            alert('이름 변경 중 오류가 발생했습니다.');
+        }
+    }
+
+    async deleteItem(item) {
+        try {
+            console.log('🗑️ Deleting item:', item.label, 'type:', item.type);
+            
+            // 삭제 확인
+            const itemType = item.type === 'folder' ? '폴더' : '다이어그램';
+            const confirmMessage = item.type === 'folder' 
+                ? `"${item.label}" 폴더와 내부의 모든 파일을 삭제하시겠습니까?\n\n⚠️ 이 작업은 되돌릴 수 없습니다.`
+                : `"${item.label}" 다이어그램을 삭제하시겠습니까?\n\n⚠️ 이 작업은 되돌릴 수 없습니다.`;
+                
+            if (!confirm(confirmMessage)) {
+                return; // 사용자가 취소함
+            }
+            
+            const appManager = window.appManager;
+            if (!appManager || !appManager.currentProject) {
+                console.error('❌ AppManager or current project not found');
+                return;
+            }
+            
+            const { dbManager } = await import('../lib/database.js');
+            let result;
+            
+            if (item.type === 'folder') {
+                // 폴더 삭제 (하위 항목들도 함께 삭제됨)
+                result = await dbManager.deleteFolder(item.folderId);
+                
+                // 만약 현재 열린 다이어그램이 삭제되는 폴더 내에 있다면 에디터 닫기
+                if (appManager.bpmnEditor && appManager.bpmnEditor.currentDiagram) {
+                    const currentDiagram = appManager.bpmnEditor.currentDiagram;
+                    const diagramsInFolder = this.getDiagramsInFolder(item.folderId);
+                    
+                    if (diagramsInFolder.some(d => d.id === currentDiagram.id)) {
+                        console.log('📝 Closing diagram as its folder is being deleted');
+                        await appManager.bpmnEditor.closeDiagram();
+                    }
+                }
+            } else {
+                // 다이어그램 삭제
+                result = await dbManager.deleteDiagram(item.diagramId);
+                
+                // 현재 열린 다이어그램이 삭제되는 다이어그램인 경우 에디터 닫기
+                if (appManager.bpmnEditor && appManager.bpmnEditor.currentDiagram) {
+                    if (appManager.bpmnEditor.currentDiagram.id === item.diagramId) {
+                        console.log('📝 Closing current diagram as it is being deleted');
+                        await appManager.bpmnEditor.closeDiagram();
+                    }
+                }
+            }
+            
+            if (result.error) {
+                console.error('❌ Failed to delete item:', result.error);
+                alert(`${itemType} 삭제에 실패했습니다: ${result.error.message || result.error}`);
+                return;
+            }
+            
+            console.log(`✅ ${itemType} deleted successfully:`, result.data);
+            
+            // 프로젝트 데이터 새로고침 후 트리 업데이트
+            await this.refreshProjectData();
+            
+            // 선택된 항목 초기화
+            if (this.selectedItem === item) {
+                this.selectedItem = null;
+            }
+            if (this.focusedItem === item) {
+                this.focusedItem = null;
+            }
+            
+            console.log(`✅ ${itemType} "${item.label}" 삭제 완료`);
+            
+        } catch (error) {
+            console.error('❌ Error deleting item:', error);
+            alert('삭제 중 오류가 발생했습니다.');
+        }
+    }
+
+    getDiagramsInFolder(folderId) {
+        try {
+            const appManager = window.appManager;
+            if (!appManager || !appManager.currentProject) {
+                return [];
+            }
+            
+            const { diagrams } = appManager.currentProject;
+            return diagrams.filter(diagram => diagram.folder_id === folderId);
+        } catch (error) {
+            console.error('❌ Error getting diagrams in folder:', error);
+            return [];
+        }
+    }
+
+    async moveItem(item, newParent) {
+        try {
+            console.log('📁 Moving item:', item.label, 'to:', newParent.label);
+            
+            // 자기 자신이나 자기 자신의 자식으로 이동하는 것을 방지
+            if (item === newParent || this.isDescendantOf(newParent, item)) {
+                console.log('❌ Cannot move item to itself or its descendant');
+                alert('폴더를 자기 자신이나 하위 폴더로 이동할 수 없습니다.');
+                return;
+            }
+            
+            // 같은 부모 내에서 중복 이름 확인
+            if (this.checkDuplicateNameForMove(item.label, item.type, newParent, item)) {
+                alert(`대상 폴더에 이미 "${item.label}" 이름의 ${item.type === 'folder' ? '폴더' : '다이어그램'}가 존재합니다.`);
+                return;
+            }
+            
+            const appManager = window.appManager;
+            if (!appManager || !appManager.currentProject) {
+                console.error('❌ AppManager or current project not found');
+                return;
+            }
+            
+            const { dbManager } = await import('../lib/database.js');
+            let result;
+            
+            // 새로운 부모 폴더 ID 계산
+            let newParentId = null;
+            if (newParent && newParent.folderId) {
+                newParentId = newParent.folderId;
+            }
+            
+            if (item.type === 'folder') {
+                // 폴더 이동
+                const folderData = {
+                    id: item.folderId,
+                    parent_id: newParentId
+                };
+                result = await dbManager.updateFolder(folderData);
+            } else {
+                // 다이어그램 이동
+                const diagramData = {
+                    id: item.diagramId,
+                    folder_id: newParentId
+                };
+                result = await dbManager.updateDiagram(diagramData);
+            }
+            
+            if (result.error) {
+                console.error('❌ Failed to move item:', result.error);
+                alert(`${item.type === 'folder' ? '폴더' : '다이어그램'} 이동에 실패했습니다.`);
+                return;
+            }
+            
+            console.log('✅ Item moved successfully:', result.data);
+            
+            // 프로젝트 데이터 새로고침 후 트리 업데이트
+            await this.refreshProjectData();
+            
+            console.log(`✅ "${item.label}" 이동 완료`);
+            
+        } catch (error) {
+            console.error('❌ Error moving item:', error);
+            alert('이동 중 오류가 발생했습니다.');
+        }
+    }
+
+    isDescendantOf(potentialDescendant, ancestor) {
+        // ancestor가 폴더가 아니면 descendant가 될 수 없음
+        if (ancestor.type !== 'folder') {
+            return false;
+        }
+        
+        let current = potentialDescendant.parent;
+        while (current) {
+            if (current === ancestor) {
+                return true;
+            }
+            current = current.parent;
+        }
+        return false;
+    }
+
+    checkDuplicateNameForMove(name, type, newParentItem, currentItem) {
+        try {
+            const appManager = window.appManager;
+            if (!appManager || !appManager.currentProject) {
+                return false;
+            }
+            
+            const { folders, diagrams } = appManager.currentProject;
+            
+            // 새 부모 폴더 ID 확인
+            let newParentId = null;
+            if (newParentItem && newParentItem.folderId) {
+                newParentId = newParentItem.folderId;
+            }
+            
+            if (type === 'folder') {
+                // 같은 부모 폴더 내에서 중복 폴더명 확인 (자기 자신 제외)
+                return folders.some(folder => 
+                    folder.name === name && 
+                    folder.parent_id === newParentId && 
+                    folder.id !== currentItem.folderId
+                );
+            } else if (type === 'diagram') {
+                // 같은 폴더 내에서 중복 다이어그램명 확인 (자기 자신 제외)
+                return diagrams.some(diagram => 
+                    diagram.name === name && 
+                    diagram.folder_id === newParentId && 
+                    diagram.id !== currentItem.diagramId
+                );
+            }
+            
+            return false;
+        } catch (error) {
+            console.error('❌ Error checking duplicate name for move:', error);
+            return false;
+        }
+    }
+
+    cutItem(item) {
+        console.log('✂️ Cut item:', item.label);
+        // TODO: Implement cut functionality
+        // For now, just show a placeholder message
+        console.log('🔄 Cut functionality will be implemented in future version');
+    }
+
+    copyItem(item) {
+        console.log('📋 Copy item:', item.label);
+        // TODO: Implement copy functionality
+        // For now, just show a placeholder message
+        console.log('🔄 Copy functionality will be implemented in future version');
+    }
+
+    pasteItem(item) {
+        console.log('📌 Paste to:', item.label);
+        // TODO: Implement paste functionality
+        // For now, just show a placeholder message
+        console.log('🔄 Paste functionality will be implemented in future version');
+    }
+
+    async exportItem(item) {
+        try {
+            console.log('💾 Export item:', item.label);
+            
+            if (item.type !== 'diagram') {
+                alert('폴더는 내보낼 수 없습니다. 다이어그램을 선택해주세요.');
+                return;
+            }
+
+            const appManager = window.appManager;
+            if (!appManager) {
+                console.error('❌ AppManager not found');
+                return;
+            }
+
+            // BPMN 에디터를 통해 내보내기
+            if (appManager.bpmnEditor) {
+                // 먼저 다이어그램을 열고 내보내기
+                const diagram = appManager.currentProject.diagrams.find(d => d.id === item.diagramId);
+                if (diagram) {
+                    await appManager.bpmnEditor.openDiagram({
+                        id: diagram.id,
+                        name: diagram.name,
+                        content: diagram.bpmn_xml
+                    });
+                    
+                    // 내보내기 실행
+                    appManager.bpmnEditor.exportDiagram();
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error exporting item:', error);
+            alert('내보내기 중 오류가 발생했습니다.');
+        }
+    }
+
+    showProperties(item) {
+        console.log('📋 Show properties for:', item.label);
+        
+        const itemType = item.type === 'folder' ? '폴더' : '다이어그램';
+        const createdDate = item.created_at ? new Date(item.created_at).toLocaleString('ko-KR') : '알 수 없음';
+        const updatedDate = item.updated_at ? new Date(item.updated_at).toLocaleString('ko-KR') : '알 수 없음';
+        
+        let propertiesText = `📋 ${itemType} 속성\n\n`;
+        propertiesText += `이름: ${item.label}\n`;
+        propertiesText += `타입: ${itemType}\n`;
+        propertiesText += `생성일: ${createdDate}\n`;
+        propertiesText += `수정일: ${updatedDate}\n`;
+        
+        if (item.type === 'folder') {
+            const childCount = item.children ? item.children.length : 0;
+            propertiesText += `하위 항목: ${childCount}개\n`;
+        }
+        
+        alert(propertiesText);
     }
 
     refresh() {
@@ -1017,6 +1709,9 @@ class Explorer {
                 return;
             }
             
+            // 프로젝트명 업데이트
+            this.updateProjectNameDisplay();
+            
             console.log('🔄 Rendering tree content...');
             const treeContent = this.renderTree();
             console.log('🔄 Tree content length:', treeContent.length);
@@ -1027,6 +1722,41 @@ class Explorer {
         
         // Always update accessibility properties after any refresh
         this.updateAriaProperties();
+    }
+    
+    updateProjectNameDisplay() {
+        try {
+            console.log('🔄 Updating project name display...');
+            const projectName = this.getProjectName();
+            console.log('📍 Current project name:', projectName);
+            
+            // 기존 프로젝트명 요소 찾기
+            const titleDiv = this.container.querySelector('.explorer-title > div');
+            if (titleDiv) {
+                let projectSpan = titleDiv.querySelector('span');
+                
+                if (projectName) {
+                    if (!projectSpan) {
+                        // 프로젝트명 스팬이 없으면 생성
+                        projectSpan = document.createElement('span');
+                        projectSpan.style.cssText = 'font-size: 12px; color: #999999; margin-top: 2px; font-weight: 400;';
+                        titleDiv.appendChild(projectSpan);
+                    }
+                    projectSpan.textContent = projectName;
+                    projectSpan.style.display = 'block';
+                    console.log('✅ Project name updated:', projectName);
+                } else {
+                    if (projectSpan) {
+                        projectSpan.style.display = 'none';
+                    }
+                    console.log('❌ No project name found');
+                }
+            } else {
+                console.warn('❌ Title div not found');
+            }
+        } catch (error) {
+            console.warn('Failed to update project name display:', error);
+        }
     }
 
     updateTreeItem(item, element) {
@@ -1082,9 +1812,233 @@ class Explorer {
         return this.dataProvider;
     }
 
+    clearDragOverStyles() {
+        const dragOverItems = this.container.querySelectorAll('.drag-over, .drag-over-before, .drag-over-after');
+        dragOverItems.forEach(item => {
+            item.classList.remove('drag-over', 'drag-over-before', 'drag-over-after');
+        });
+        
+        // Remove root drag-over style
+        const treeView = this.container.querySelector('.tree-view');
+        if (treeView) {
+            treeView.classList.remove('drag-over-root');
+        }
+        
+        // Remove drop indicators
+        const indicators = this.container.querySelectorAll('.drop-indicator');
+        indicators.forEach(indicator => indicator.remove());
+    }
+    
+    clearPositionIndicators(treeItem) {
+        treeItem.classList.remove('drag-over-before', 'drag-over-after');
+        const indicators = treeItem.querySelectorAll('.drop-indicator');
+        indicators.forEach(indicator => indicator.remove());
+    }
+    
+    updateDropIndicators(event) {
+        if (!this.draggedItem) return;
+        
+        const treeItem = event.target.closest('.tree-item');
+        if (!treeItem) return;
+        
+        // Clear previous indicators
+        this.clearDragOverStyles();
+        
+        const rect = treeItem.getBoundingClientRect();
+        const mouseY = event.clientY;
+        const itemTop = rect.top;
+        const itemBottom = rect.bottom;
+        const itemHeight = rect.height;
+        
+        // Determine drop position based on mouse position within the item
+        const relativeY = mouseY - itemTop;
+        const upperThird = itemHeight / 3;
+        const lowerThird = itemHeight * 2 / 3;
+        
+        const itemId = treeItem.dataset.itemId;
+        const targetItem = this.dataProvider.findNodeById(itemId);
+        
+        if (targetItem && targetItem !== this.draggedItem) {
+            if (targetItem.type === 'folder') {
+                // For folders, allow dropping into, above, or below
+                if (relativeY < upperThird) {
+                    // Drop above - reorder
+                    treeItem.classList.add('drag-over-before');
+                    this.createDropIndicator(treeItem, 'before');
+                    console.log('🔼 Drop above folder for reordering');
+                } else if (relativeY > lowerThird) {
+                    // Drop below - reorder
+                    treeItem.classList.add('drag-over-after');
+                    this.createDropIndicator(treeItem, 'after');
+                    console.log('🔽 Drop below folder for reordering');
+                } else {
+                    // Drop into folder - move
+                    treeItem.classList.add('drag-over');
+                    console.log('📁 Drop into folder for moving');
+                }
+            } else if (targetItem.type === 'file' || targetItem.type === 'diagram') {
+                // For files, allow dropping above or below for reordering
+                if (relativeY < itemHeight / 2) {
+                    treeItem.classList.add('drag-over-before');
+                    this.createDropIndicator(treeItem, 'before');
+                    // 로그 스팸 방지: 같은 위치에 대해서는 로그 출력하지 않음
+                    if (this.lastDropPosition !== 'before-' + targetItem.label) {
+                        console.log('🔼 Drop above file for reordering');
+                        this.lastDropPosition = 'before-' + targetItem.label;
+                    }
+                } else {
+                    treeItem.classList.add('drag-over-after');
+                    this.createDropIndicator(treeItem, 'after');
+                    // 로그 스팸 방지: 같은 위치에 대해서는 로그 출력하지 않음
+                    if (this.lastDropPosition !== 'after-' + targetItem.label) {
+                        console.log('🔽 Drop below file for reordering');
+                        this.lastDropPosition = 'after-' + targetItem.label;
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * 드롭 위치 표시 인디케이터 생성
+     */
+    createDropIndicator(treeItem, position) {
+        // 기존 인디케이터 제거
+        const existingIndicators = treeItem.querySelectorAll('.drop-indicator');
+        existingIndicators.forEach(indicator => indicator.remove());
+        
+        // 새 인디케이터 생성
+        const indicator = document.createElement('div');
+        indicator.className = 'drop-indicator fade-in';
+        indicator.style.cssText = `
+            position: absolute;
+            left: 16px;
+            right: 8px;
+            height: 2px;
+            background-color: #007acc;
+            z-index: 1000;
+            pointer-events: none;
+            box-shadow: 0 0 4px rgba(0, 122, 204, 0.6);
+        `;
+        
+        if (position === 'before') {
+            indicator.style.top = '-1px';
+        } else if (position === 'after') {
+            indicator.style.bottom = '-1px';
+        }
+        
+        // 인디케이터 점(dot) 추가
+        const dot = document.createElement('div');
+        dot.style.cssText = `
+            position: absolute;
+            left: -4px;
+            top: -3px;
+            width: 8px;
+            height: 8px;
+            background-color: #007acc;
+            border-radius: 50%;
+            box-shadow: 0 0 4px rgba(0, 122, 204, 0.6);
+        `;
+        indicator.appendChild(dot);
+        
+        // 트리 아이템에 상대 위치 설정
+        if (treeItem.style.position !== 'relative') {
+            treeItem.style.position = 'relative';
+        }
+        
+        treeItem.appendChild(indicator);
+    }
+    
+    getDropPosition(treeItem) {
+        if (treeItem.classList.contains('drag-over-before')) return 'before';
+        if (treeItem.classList.contains('drag-over-after')) return 'after';
+        if (treeItem.classList.contains('drag-over')) return 'into';
+        return 'none';
+    }
+    
+    async reorderItem(draggedItem, targetItem, position) {
+        try {
+            console.log('🔄 Reordering item:', draggedItem.label, position, targetItem.label);
+            
+            // Check if items are in the same parent
+            if (draggedItem.parent !== targetItem.parent) {
+                console.log('❌ Items are not in the same parent, cannot reorder');
+                return;
+            }
+            
+            const parent = draggedItem.parent || this.dataProvider.root;
+            const siblings = parent.children;
+            
+            // Find current positions
+            const draggedIndex = siblings.indexOf(draggedItem);
+            const targetIndex = siblings.indexOf(targetItem);
+            
+            if (draggedIndex === -1 || targetIndex === -1) {
+                console.log('❌ Could not find item positions');
+                return;
+            }
+            
+            // Calculate new position
+            let newIndex = targetIndex;
+            if (position === 'after') {
+                newIndex = targetIndex + 1;
+            }
+            
+            // Adjust if dragged item is before target
+            if (draggedIndex < newIndex) {
+                newIndex--;
+            }
+            
+            // Remove from current position and insert at new position
+            siblings.splice(draggedIndex, 1);
+            siblings.splice(newIndex, 0, draggedItem);
+            
+            // Update sort order for all siblings in the parent
+            const updatedItems = [];
+            siblings.forEach((item, index) => {
+                item.sortOrder = index;
+                
+                // Determine correct type for database
+                let itemType = item.type;
+                if (item.type === 'file' && item.diagramId) {
+                    itemType = 'diagram';
+                }
+                
+                updatedItems.push({
+                    type: itemType,
+                    folderId: item.folderId,
+                    diagramId: item.diagramId,
+                    sortOrder: index
+                });
+            });
+            
+            // Save order to database
+            console.log('💾 Saving new order to database...');
+            if (window.dbManager && window.dbManager.updateItemOrder) {
+                const result = await window.dbManager.updateItemOrder(updatedItems);
+                if (!result.success) {
+                    console.error('❌ Failed to save order to database:', result.error);
+                    // 실패시 원래 순서로 복원
+                    siblings.splice(newIndex, 1);
+                    siblings.splice(draggedIndex, 0, draggedItem);
+                    return;
+                }
+            }
+            
+            console.log('✅ Item reordered and saved successfully');
+            
+            // Refresh the tree to show new order
+            this.refreshTree();
+            
+        } catch (error) {
+            console.error('❌ Error reordering item:', error);
+        }
+    }
+
     destroy() {
         // Clean up event listeners and resources
         this.dataProvider.setOnDidChangeTreeData(null);
+        this.contextMenu.destroy();
         this.onItemClick = null;
         this.onItemDoubleClick = null;
         this.onSelectionChange = null;

@@ -24,64 +24,127 @@ export class CollaborationManager {
    * @param {Object} userInfo - 사용자 정보
    */
   initialize(roomId, websocketUrl = 'ws://localhost:1234', userInfo = {}) {
-    try {
-      // 기존 연결이 있으면 정리
-      this.disconnect();
-      
-      // userInfo가 null이면 빈 객체로 초기화
-      const safeUserInfo = userInfo || {};
-      
-      // 사용자 정보 설정
-      this.userId = safeUserInfo.id || this.generateUserId();
-      this.userColor = this.generateUserColor(this.userId);
-      this.currentRoomId = roomId;
-      
-      console.log(`협업 초기화: 방 ID=${roomId}, 사용자 ID=${this.userId}, 이름=${safeUserInfo.name || 'Unknown'}`);
-      
-      // Yjs 문서 생성
-      this.ydoc = new Y.Doc();
-      
-      // WebSocket 프로바이더 생성
-      this.provider = new WebsocketProvider(websocketUrl, roomId, this.ydoc);
-      
-      // Awareness 설정 (사용자 상태 및 커서 정보)
-      this.awareness = this.provider.awareness;
-      
-      // 로컬 사용자 정보 설정
-      this.awareness.setLocalStateField('user', {
-        id: this.userId,
-        name: safeUserInfo.name || safeUserInfo.email || `사용자 ${this.userId.slice(0, 6)}`,
-        email: safeUserInfo.email,
-        color: this.userColor,
-        cursor: null,
-        timestamp: Date.now()
-      });
+    return new Promise((resolve, reject) => {
+      try {
+        // 기존 연결이 있으면 정리
+        this.disconnect();
+        
+        // userInfo가 null이면 빈 객체로 초기화
+        const safeUserInfo = userInfo || {};
+        
+        // 사용자 정보 설정
+        this.userId = safeUserInfo.id || this.generateUserId();
+        this.userColor = this.generateUserColor(this.userId);
+        this.currentRoomId = roomId;
+        
+        console.log(`🔗 협업 초기화 시도: 방 ID=${roomId}, 사용자 ID=${this.userId}, 이름=${safeUserInfo.name || 'Unknown'}`);
+        
+        // Yjs 문서 생성
+        this.ydoc = new Y.Doc();
+        
+        // WebSocket 프로바이더 생성 (타임아웃 추가)
+        this.provider = new WebsocketProvider(websocketUrl, roomId, this.ydoc, {
+          maxBackoffTime: 10000, // 최대 재연결 대기 시간
+          maxRetries: 3 // 최대 재연결 시도 횟수
+        });
+        
+        // Awareness 설정 (사용자 상태 및 커서 정보)
+        this.awareness = this.provider.awareness;
+        
+        // 연결 타임아웃 설정 (5초)
+        const connectionTimeout = setTimeout(() => {
+          if (!this.isConnected) {
+            console.warn('⚠️ 협업 서버 연결 타임아웃 - 오프라인 모드로 실행');
+            this.handleConnectionFailure();
+            resolve(false); // 연결 실패시 false 반환
+          }
+        }, 5000);
+        
+        // 연결 성공 이벤트
+        this.provider.on('status', (event) => {
+          if (event.status === 'connected') {
+            clearTimeout(connectionTimeout);
+            this.isConnected = true;
+            console.log('✅ 협업 서버 연결 성공');
+            resolve(true);
+          } else if (event.status === 'disconnected') {
+            this.isConnected = false;
+            console.log('📡 협업 서버 연결 끊어짐');
+          }
+        });
+        
+        // 연결 오류 처리
+        this.provider.on('connection-error', (error) => {
+          clearTimeout(connectionTimeout);
+          console.warn('⚠️ 협업 서버 연결 오류:', error.message);
+          this.handleConnectionFailure();
+          resolve(false); // 오류시 false 반환하여 계속 진행
+        });
+        
+        // 로컬 사용자 정보 설정
+        this.awareness.setLocalStateField('user', {
+          id: this.userId,
+          name: safeUserInfo.name || safeUserInfo.email || `사용자 ${this.userId.slice(0, 6)}`,
+          email: safeUserInfo.email,
+          color: this.userColor,
+          cursor: null,
+          timestamp: Date.now()
+        });
 
-      // 연결 상태 이벤트 리스너
-      this.provider.on('status', (event) => {
-        this.isConnected = event.status === 'connected';
-        this.emit('connection', { connected: this.isConnected });
-      });
+        // 동기화 이벤트 리스너
+        this.provider.on('sync', (synced) => {
+          this.emit('sync', { synced });
+        });
 
-      // 동기화 이벤트 리스너
-      this.provider.on('sync', (synced) => {
-        this.emit('sync', { synced });
-      });
+        // Awareness 변경 이벤트 리스너
+        this.awareness.on('change', (changes) => {
+          this.emit('awarenessChange', { changes });
+        });
 
-      // Awareness 변경 이벤트 리스너
-      this.awareness.on('change', (changes) => {
-        this.emit('awarenessChange', { changes });
-      });
+        // 페이지 가시성 변경 이벤트 리스너
+        this.setupVisibilityHandler();
+        
+        console.log(`🔗 협업 세션 초기화 완료: 방 ID ${roomId}, 사용자 ID ${this.userId}`);
+        
+      } catch (error) {
+        console.error('❌ 협업 세션 초기화 실패:', error);
+        this.handleConnectionFailure();
+        resolve(false); // 오류시에도 false 반환하여 앱이 계속 실행되도록 함
+      }
+    });
+  }
 
-      // 페이지 가시성 변경 이벤트 리스너
-      this.setupVisibilityHandler();
-      
-      console.log(`협업 세션 초기화 완료: 방 ID ${roomId}, 사용자 ID ${this.userId}`);
-      
-    } catch (error) {
-      console.error('협업 세션 초기화 실패:', error);
-      throw error;
+  /**
+   * 연결 실패 처리 - 오프라인 모드로 전환
+   */
+  handleConnectionFailure() {
+    console.log('🔄 오프라인 모드로 전환 중...');
+    
+    // 기존 연결 정리
+    if (this.provider) {
+      try {
+        this.provider.destroy();
+      } catch (e) {
+        // 무시
+      }
+      this.provider = null;
     }
+    
+    // Yjs 문서는 유지하되 오프라인으로 작업
+    if (!this.ydoc) {
+      this.ydoc = new Y.Doc();
+    }
+    
+    // 더미 awareness 객체 생성 (로컬 작업용)
+    this.awareness = {
+      setLocalStateField: () => {},
+      on: () => {},
+      getStates: () => new Map(),
+      destroy: () => {}
+    };
+    
+    this.isConnected = false;
+    this.emit('connection', { connected: false });
   }
 
   /**

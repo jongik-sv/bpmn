@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Connection Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Database Connection Test</h1>
+    <div id="status">Testing database connection...</div>
+    <div id="results"></div>
+    
+    <script type="module">
+        import { getCurrentUser } from './src/lib/supabase.js';
+        import { dbManager } from './src/lib/database.js';
+
+        async function testDatabase() {
+            const statusEl = document.getElementById('status');
+            const resultsEl = document.getElementById('results');
+            
+            try {
+                statusEl.innerHTML = '<div class="info">1. Testing Supabase connection...</div>';
+                
+                // Test getCurrentUser
+                const user = await getCurrentUser();
+                resultsEl.innerHTML += `<div class="info">Current user: ${user ? user.email : 'Not logged in'}</div>`;
+                
+                statusEl.innerHTML += '<div class="info">2. Testing database methods...</div>';
+                
+                // Test getUserProjects without infinite recursion
+                const projects = await dbManager.getUserProjects();
+                
+                if (projects.error) {
+                    resultsEl.innerHTML += `<div class="error">Error: ${projects.error.message}</div>`;
+                    resultsEl.innerHTML += `<pre>Details: ${JSON.stringify(projects.error, null, 2)}</pre>`;
+                } else {
+                    resultsEl.innerHTML += `<div class="success">✅ Database query successful!</div>`;
+                    resultsEl.innerHTML += `<div class="info">Found ${projects.data?.length || 0} projects</div>`;
+                }
+                
+                statusEl.innerHTML += '<div class="success">✅ Database test completed!</div>';
+                
+            } catch (error) {
+                statusEl.innerHTML += `<div class="error">❌ Test failed: ${error.message}</div>`;
+                resultsEl.innerHTML += `<pre>Error details: ${JSON.stringify(error, null, 2)}</pre>`;
+            }
+        }
+        
+        // Run test when page loads
+        testDatabase();
+    </script>
+</body>
+</html>

@@ -14,10 +14,14 @@ import newDiagramXML from '../assets/newDiagram.bpmn';
  * BPMN 편집기 클래스 - 새로운 UI 구조에 맞게 재구성
  */
 export class BpmnEditor {
-  constructor() {
-    this.container = $('#js-drop-zone');
-    this.canvas = $('#js-canvas');
-    this.propertiesPanel = $('#js-properties-panel');
+  constructor(containerSelector = '#js-drop-zone') {
+    // 컨테이너 동적 할당 지원
+    this.containerSelector = containerSelector;
+    this.container = $(containerSelector);
+    
+    // 서브 요소들도 동적으로 찾거나 생성
+    this.canvas = null;
+    this.propertiesPanel = null;
     
     // 현재 상태
     this.currentUser = null;
@@ -27,11 +31,113 @@ export class BpmnEditor {
     // 협업 모듈
     this.collaborationModule = null;
     
-    this.initializeModeler();
-    this.setupEventListeners();
-    this.setupFileDrop();
+    // 에디터 상태
+    this.modeler = null;
+    this.isInitialized = false;
     
-    console.log('BpmnEditor initialized');
+    // 지연 초기화 - DOM이 준비되면 초기화
+    this.initializeWhenReady();
+  }
+  
+  async initializeWhenReady() {
+    try {
+      // DOM이 준비될 때까지 대기
+      if (document.readyState === 'loading') {
+        await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
+      }
+      
+      await this.setupContainer();
+      this.initializeModeler();
+      this.setupEventListeners();
+      this.setupFileDrop();
+      this.isInitialized = true;
+      console.log('BpmnEditor initialized');
+    } catch (error) {
+      console.error('❌ BpmnEditor initialization failed:', error);
+    }
+  }
+  
+  async setupContainer() {
+    // 컨테이너가 존재하지 않으면 생성
+    if (this.container.length === 0) {
+      console.log('📍 Container not found, creating default structure...');
+      
+      // 기본 구조 생성 (flex layout)
+      const body = $('body');
+      const defaultContainer = $(`
+        <div id="js-drop-zone" style="width: 100%; height: 100vh; position: relative; display: flex;">
+          <div id="js-canvas" style="flex: 1; width: 100%; height: 100%; background: #fafafa;"></div>
+          <div id="js-properties-panel" style="width: 300px; height: 100%; background: white; border-left: 1px solid #ccc; overflow-y: auto;"></div>
+        </div>
+      `);
+      
+      body.append(defaultContainer);
+      this.container = defaultContainer;
+    }
+    
+    // 서브 요소들 확인 및 생성
+    this.canvas = this.container.find('#js-canvas');
+    if (this.canvas.length === 0) {
+      this.canvas = $('<div id="js-canvas" style="width: 100%; height: 100%;"></div>');
+      this.container.append(this.canvas);
+    }
+    
+    this.propertiesPanel = this.container.find('#js-properties-panel');
+    if (this.propertiesPanel.length === 0) {
+      this.propertiesPanel = $('<div id="js-properties-panel" style="position: absolute; top: 0; right: 0; width: 300px; height: 100%; background: white; border-left: 1px solid #ccc; z-index: 100;"></div>');
+      this.container.append(this.propertiesPanel);
+    }
+    
+    console.log('✅ Container setup complete');
+  }
+  
+  /**
+   * 새 컨테이너로 에디터 이동
+   */
+  async moveToContainer(newContainerSelector) {
+    try {
+      console.log('📦 Moving BPMN Editor to new container:', newContainerSelector);
+      
+      const newContainer = $(newContainerSelector);
+      if (newContainer.length === 0) {
+        throw new Error('New container not found: ' + newContainerSelector);
+      }
+      
+      // 기존 modeler 정리
+      if (this.modeler) {
+        this.modeler.destroy();
+        this.modeler = null;
+      }
+      
+      // 새 컨테이너 설정
+      this.containerSelector = newContainerSelector;
+      this.container = newContainer;
+      
+      // 새 컨테이너에 필요한 구조 생성
+      newContainer.html(`
+        <div id="js-canvas" style="flex: 1; width: 100%; height: 100%; background: #fafafa;"></div>
+        <div id="js-properties-panel" style="width: 250px; height: 100%; background: white; border-left: 1px solid #ccc; overflow-y: auto; display: block;"></div>
+      `);
+      
+      this.canvas = newContainer.find('#js-canvas');
+      this.propertiesPanel = newContainer.find('#js-properties-panel');
+      
+      // 에디터 재초기화
+      this.initializeModeler();
+      this.setupEventListeners();
+      this.setupFileDrop();
+      
+      // 현재 다이어그램이 있으면 다시 로드
+      if (this.currentDiagram) {
+        await this.openDiagram(this.currentDiagram);
+      }
+      
+      console.log('✅ BPMN Editor moved successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to move BPMN Editor:', error);
+      return false;
+    }
   }
 
   /**
@@ -84,9 +190,32 @@ export class BpmnEditor {
     try {
       this.currentDiagram = diagramData;
       
-      // BPMN XML 로드
-      const xml = diagramData.content || newDiagramXML;
+      // BPMN XML 로드 (빈 문서인 경우 디폴트 문서 사용)
+      let xml = diagramData.content || newDiagramXML;
+      
+      // 빈 문서이거나 유효하지 않은 XML인 경우 디폴트 문서로 대체
+      if (!xml || xml.trim() === '' || !this.isValidBpmnXml(xml)) {
+        console.warn('빈 문서이거나 유효하지 않은 XML입니다. 디폴트 문서로 대체합니다.');
+        xml = newDiagramXML;
+        
+        // 현재 다이어그램 데이터도 업데이트
+        if (this.currentDiagram) {
+          this.currentDiagram.content = xml;
+        }
+      }
+      
       await this.modeler.importXML(xml);
+      
+      // 캔버스 크기 조정
+      setTimeout(() => {
+        try {
+          const canvas = this.modeler.get('canvas');
+          canvas.resized();
+          console.log('Canvas resized after diagram load');
+        } catch (resizeError) {
+          console.warn('Canvas resize failed:', resizeError);
+        }
+      }, 100);
       
       this.container
         .removeClass('with-error')
@@ -252,25 +381,57 @@ export class BpmnEditor {
   /**
    * BPMN 모델러 초기화
    */
-  initializeModeler() {
-    this.modeler = new BpmnModeler({
-      container: this.canvas,
-      propertiesPanel: {
-        parent: '#js-properties-panel'
-      },
-      additionalModules: [
-        BpmnPropertiesPanelModule,
-        BpmnPropertiesProviderModule
-      ]
-    });
+  initializeModeler(targetContainer = null) {
+    try {
+      // 타겟 컨테이너가 지정된 경우 해당 컨테이너 사용
+      let canvasElement = this.canvas;
+      let propertiesPanelSelector = '#js-properties-panel';
+      
+      if (targetContainer) {
+        console.log('🔧 Initializing modeler in target container:', targetContainer);
+        
+        // 타겟 컨테이너에 canvas와 properties panel 생성 (flex layout)
+        const $targetContainer = $(targetContainer);
+        $targetContainer.css('display', 'flex');
+        $targetContainer.html(`
+          <div id="js-canvas" style="flex: 1; width: 100%; height: 100%; background: #fafafa;"></div>
+          <div id="js-properties-panel" style="width: 250px; height: 100%; background: white; border-left: 1px solid #ccc; overflow-y: auto; display: block;"></div>
+        `);
+        
+        canvasElement = $targetContainer.find('#js-canvas');
+        this.canvas = canvasElement;
+        this.propertiesPanel = $targetContainer.find('#js-properties-panel');
+        this.container = $targetContainer;
+      }
+      
+      if (!canvasElement || canvasElement.length === 0) {
+        throw new Error('Canvas element not found');
+      }
 
-    this.container.removeClass('with-diagram');
-    
-    // 다이어그램 변경 시 내보내기 업데이트 및 자동 저장
-    this.modeler.on('commandStack.changed', debounce(() => {
-      this.exportArtifacts();
-      this.autoSaveDiagram();
-    }, 1000));
+      this.modeler = new BpmnModeler({
+        container: canvasElement[0], // DOM 요소 전달
+        propertiesPanel: {
+          parent: this.propertiesPanel[0] || propertiesPanelSelector
+        },
+        additionalModules: [
+          BpmnPropertiesPanelModule,
+          BpmnPropertiesProviderModule
+        ]
+      });
+
+      this.container.removeClass('with-diagram');
+      
+      // 다이어그램 변경 시 내보내기 업데이트 및 자동 저장
+      this.modeler.on('commandStack.changed', debounce(() => {
+        this.exportArtifacts();
+        this.autoSaveDiagram();
+      }, 1000));
+      
+      console.log('✅ BPMN Modeler initialized successfully');
+    } catch (error) {
+      console.error('❌ Failed to initialize BPMN modeler:', error);
+      throw error;
+    }
   }
 
   /**
@@ -480,6 +641,129 @@ export class BpmnEditor {
     
     console.log('Online users in editor:', users);
     // TODO: 에디터 내 사용자 목록 UI 구현
+  }
+
+  /**
+   * 현재 다이어그램 닫기
+   */
+  async closeDiagram() {
+    if (this.currentDiagram) {
+      console.log('📝 Closing diagram:', this.currentDiagram.name);
+      
+      // 협업 세션 종료
+      if (this.collaborationModule) {
+        try {
+          this.collaborationModule.disconnect();
+        } catch (error) {
+          console.warn('Collaboration disconnect error:', error);
+        }
+      }
+      
+      // 현재 다이어그램 정보 클리어
+      this.currentDiagram = null;
+      
+      // 에디터를 기본 상태로 리셋
+      try {
+        if (this.modeler) {
+          const xml = newDiagramXML;
+          await this.modeler.importXML(xml);
+        }
+      } catch (error) {
+        console.warn('Error resetting diagram:', error);
+      }
+      
+      // UI 업데이트
+      this.updateBreadcrumb();
+      
+      console.log('✅ Diagram closed');
+    }
+  }
+
+  /**
+   * 에디터 제목 업데이트
+   */
+  updateEditorTitle() {
+    this.updateBreadcrumb();
+    
+    // 탭 제목도 업데이트
+    if (this.currentDiagram) {
+      document.title = `${this.currentDiagram.name} - BPMN 협업 에디터`;
+    } else {
+      document.title = 'BPMN 협업 에디터';
+    }
+  }
+
+  /**
+   * 다이어그램 내보내기
+   */
+  async exportDiagram() {
+    if (!this.currentDiagram) {
+      alert('내보낼 다이어그램이 없습니다.');
+      return;
+    }
+
+    try {
+      console.log('💾 Exporting diagram:', this.currentDiagram.name);
+      
+      // BPMN XML 내보내기
+      const { xml } = await this.modeler.saveXML({ format: true });
+      const blob = new Blob([xml], { type: 'application/bpmn20-xml' });
+      const url = URL.createObjectURL(blob);
+      
+      // 다운로드 링크 생성
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${this.currentDiagram.name}.bpmn`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      // URL 정리
+      URL.revokeObjectURL(url);
+      
+      console.log('✅ Diagram exported successfully');
+      
+    } catch (error) {
+      console.error('❌ Error exporting diagram:', error);
+      alert('다이어그램 내보내기 중 오류가 발생했습니다.');
+    }
+  }
+
+  /**
+   * BPMN XML 유효성 검증
+   */
+  isValidBpmnXml(xml) {
+    if (!xml || typeof xml !== 'string' || xml.trim() === '') {
+      return false;
+    }
+    
+    try {
+      // 기본 XML 파싱 확인
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xml, 'text/xml');
+      
+      // 파싱 오류 확인
+      const parserError = doc.querySelector('parsererror');
+      if (parserError) {
+        console.warn('XML 파싱 오류:', parserError.textContent);
+        return false;
+      }
+      
+      // BPMN 네임스페이스 확인
+      const hasValidNamespace = xml.includes('http://www.omg.org/spec/BPMN/20100524/MODEL') ||
+                               xml.includes('bpmn:definitions') ||
+                               xml.includes('bpmn2:definitions');
+      
+      if (!hasValidNamespace) {
+        console.warn('유효한 BPMN 네임스페이스가 없습니다.');
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.warn('BPMN XML 유효성 검증 실패:', error);
+      return false;
+    }
   }
 
   /**
