@@ -195,7 +195,7 @@ export class AppManager {
     // 짧은 지연 후 실제 사용자 상태를 다시 확인
     // 탭 전환 시 발생하는 임시적인 인증 상태 변경을 방지
     setTimeout(async () => {
-      const { getCurrentUser } = await import('./lib/supabase.js');
+      const { getCurrentUser } = await import('../lib/supabase.js');
       const currentUser = await getCurrentUser();
       
       if (!currentUser) {
