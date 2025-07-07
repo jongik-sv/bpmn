@@ -548,10 +548,16 @@ export class BpmnEditor {
 
       this.container.removeClass('with-diagram');
       
-      // 다이어그램 변경 시 내보내기 업데이트 및 자동 저장 (디바운스 적용)
+      // 다이어그램 변경 시 내보내기 업데이트
       this.modeler.on('commandStack.changed', () => {
         this.exportArtifacts();
-        this.debouncedAutoSave(); // 디바운스 적용된 자동 저장 사용
+        
+        // 협업 모드에서는 자동 저장 비활성화 (충돌 방지)
+        if (!this.collaborationModule || !this.collaborationModule.isConnectedToServer()) {
+          this.debouncedAutoSave(); // 단독 작업 시에만 자동 저장
+        } else {
+          console.log('📝 Collaboration mode: Auto-save disabled to prevent conflicts');
+        }
       });
 
       // If a user is already logged in, initialize collaboration
@@ -755,8 +761,123 @@ export class BpmnEditor {
    * 협업 상태 표시
    */
   updateCollaborationStatus(connected) {
-    // TODO: 협업 상태 UI 구현
     console.log('Collaboration status:', connected ? 'connected' : 'disconnected');
+    
+    // 브레드크럼 영역에 협업 상태 표시
+    const breadcrumb = $('#breadcrumb');
+    const statusIndicator = $('#collaboration-status');
+    
+    if (statusIndicator.length === 0) {
+      // 상태 표시기가 없으면 생성
+      breadcrumb.after(`
+        <div id="collaboration-status" style="
+          padding: 4px 12px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 500;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          margin-left: 16px;
+        ">
+          <span class="status-dot" style="
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+          "></span>
+          <span class="status-text"></span>
+        </div>
+      `);
+    }
+    
+    const indicator = $('#collaboration-status');
+    const dot = indicator.find('.status-dot');
+    const text = indicator.find('.status-text');
+    
+    if (connected) {
+      indicator.css({
+        'background-color': 'rgba(16, 185, 129, 0.1)',
+        'color': '#059669',
+        'border': '1px solid rgba(16, 185, 129, 0.3)'
+      });
+      dot.css('background-color', '#10b981');
+      text.text('협업 모드');
+      
+      // 자동 저장 비활성화 알림
+      this.showCollaborationNotice();
+    } else {
+      indicator.css({
+        'background-color': 'rgba(107, 114, 128, 0.1)',
+        'color': '#6b7280',
+        'border': '1px solid rgba(107, 114, 128, 0.3)'
+      });
+      dot.css('background-color', '#6b7280');
+      text.text('단독 작업');
+      
+      // 협업 알림 제거
+      this.hideCollaborationNotice();
+    }
+  }
+
+  /**
+   * 협업 모드 알림 표시
+   */
+  showCollaborationNotice() {
+    const noticeId = 'collaboration-notice';
+    if ($(`#${noticeId}`).length > 0) return; // 이미 표시 중
+    
+    const notice = $(`
+      <div id="${noticeId}" style="
+        position: fixed;
+        top: 60px;
+        right: 20px;
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        border: 1px solid #f59e0b;
+        border-radius: 8px;
+        padding: 12px 16px;
+        max-width: 300px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        animation: slideInRight 0.3s ease-out;
+      ">
+        <div style="display: flex; align-items: start; gap: 8px;">
+          <span style="font-size: 16px;">⚠️</span>
+          <div style="flex: 1;">
+            <div style="font-weight: 600; color: #92400e; margin-bottom: 4px;">협업 모드 활성화</div>
+            <div style="font-size: 13px; color: #b45309; line-height: 1.4;">
+              자동 저장이 비활성화되었습니다.<br>
+              <strong>수동으로 저장</strong>하여 변경사항을 보존하세요.
+            </div>
+          </div>
+          <button onclick="this.parentElement.parentElement.remove()" style="
+            background: none;
+            border: none;
+            color: #92400e;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 0;
+            margin-left: 4px;
+          ">×</button>
+        </div>
+      </div>
+    `);
+    
+    $('body').append(notice);
+    
+    // 10초 후 자동 제거
+    setTimeout(() => {
+      notice.fadeOut(300, () => notice.remove());
+    }, 10000);
+  }
+
+  /**
+   * 협업 모드 알림 숨김
+   */
+  hideCollaborationNotice() {
+    $('#collaboration-notice').fadeOut(300, function() {
+      $(this).remove();
+    });
   }
 
   /**
