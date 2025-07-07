@@ -238,16 +238,22 @@ export class BpmnCollaborationModule {
         
         // 변경사항이 있는지 확인
         if (remoteXml !== currentXml) {
-          // 모델러가 완전히 준비될 때까지 대기
+          // 모델러가 준비되지 않은 경우 나중에 재시도
           if (!this.isModelerReady()) {
-            console.log('⏳ 모델러가 준비될 때까지 동기화 대기 중...');
-            await this.waitForModelerReady();
+            console.log('⏳ 모델러가 준비되지 않아 동기화를 지연시킵니다...');
+            setTimeout(() => this.syncFromRemote(), 1000); // 1초 후 재시도
+            return;
           }
           
-          // 로컬에 원격 변경사항 적용
-          await this.modeler.importXML(remoteXml);
-          
-          console.log('📥 원격 변경사항을 로컬에 동기화했습니다.');
+          // 로컬에 원격 변경사항 적용 (안전한 방식)
+          try {
+            await this.modeler.importXML(remoteXml);
+            console.log('📥 원격 변경사항을 로컬에 동기화했습니다.');
+          } catch (importError) {
+            console.warn('⚠️ XML import 실패, 나중에 재시도:', importError.message);
+            setTimeout(() => this.syncFromRemote(), 2000); // 2초 후 재시도
+            return;
+          }
         }
       }
       
@@ -269,9 +275,9 @@ export class BpmnCollaborationModule {
       const canvas = this.modeler.get('canvas');
       if (!canvas) return false;
       
-      // 레이어가 초기화되었는지 확인
-      const layers = canvas._layers;
-      return layers && Object.keys(layers).length > 0;
+      // 기본적인 canvas 메서드들이 사용 가능한지 확인
+      return typeof canvas.addRootElement === 'function' && 
+             typeof canvas.getContainer === 'function';
     } catch (error) {
       return false;
     }
