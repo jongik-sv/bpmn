@@ -142,15 +142,13 @@ class Explorer {
         // Start with root's children, sorted properly
         const visibleNodes = [];
         if (root.children && root.children.length > 0) {
-            // Sort root children: folders first, then files, both alphabetically
+            // Sort root children by sort_order (respecting database order)
             const sortedChildren = [...root.children].sort((a, b) => {
-                // Folders first
-                if (a.type === 'folder' && b.type !== 'folder') return -1;
-                if (a.type !== 'folder' && b.type === 'folder') return 1;
-                
-                // Then alphabetically (Korean-aware)
-                return a.label.localeCompare(b.label, 'ko', { numeric: true, sensitivity: 'base' });
+                const aOrder = a.sort_order || 0;
+                const bOrder = b.sort_order || 0;
+                return aOrder - bOrder;
             });
+            console.log('🔢 Sorted children by sort_order:', sortedChildren.map(c => `${c.label}(${c.sort_order})`));
             
             for (const child of sortedChildren) {
                 visibleNodes.push(child);
@@ -189,14 +187,11 @@ class Explorer {
     }
     
     addChildrenToVisible(parent, visibleNodes) {
-        // Sort children before adding to visible nodes
+        // Sort children by sort_order (respecting database order)
         const sortedChildren = [...parent.children].sort((a, b) => {
-            // Folders first
-            if (a.type === 'folder' && b.type !== 'folder') return -1;
-            if (a.type !== 'folder' && b.type === 'folder') return 1;
-            
-            // Then alphabetically (Korean-aware)
-            return a.label.localeCompare(b.label, 'ko', { numeric: true, sensitivity: 'base' });
+            const aOrder = a.sort_order || 0;
+            const bOrder = b.sort_order || 0;
+            return aOrder - bOrder;
         });
         
         for (const child of sortedChildren) {
@@ -630,16 +625,23 @@ class Explorer {
         const treeView = this.container.querySelector('.tree-view');
         
         treeView.addEventListener('dragstart', (e) => {
+            console.log('🚀 Drag start event triggered');
             const treeItem = e.target.closest('.tree-item');
             if (treeItem) {
                 const itemId = treeItem.dataset.itemId;
                 const item = this.dataProvider.findNodeById(itemId);
+                console.log('🎯 Dragged item:', item?.label, 'ID:', itemId);
                 if (item) {
                     this.draggedItem = item;
                     e.dataTransfer.setData('text/plain', item.id);
                     e.dataTransfer.effectAllowed = 'move';
                     treeItem.classList.add('dragging');
+                    console.log('✅ Drag initialized for:', item.label);
+                } else {
+                    console.log('❌ Could not find item for ID:', itemId);
                 }
+            } else {
+                console.log('❌ No tree item found for drag start');
             }
         });
 
@@ -695,18 +697,22 @@ class Explorer {
         });
 
         treeView.addEventListener('drop', (e) => {
+            console.log('🎯 Drop event triggered');
             e.preventDefault();
             
             const treeItem = e.target.closest('.tree-item');
+            console.log('🎯 Drop target item:', treeItem?.dataset?.itemId);
+            console.log('🎯 Dragged item:', this.draggedItem?.label);
             
-            // 빈 영역에 드롭한 경우 (루트로 이동)
+            // 빈 영역에 드롭한 경우 (루트로 이동, 가장 마지막 순서)
             if (!treeItem && this.draggedItem) {
-                console.log('📁 Moving to root folder');
+                console.log('📁 Moving to root folder (last position)');
                 this.moveItem(this.draggedItem, this.dataProvider.root);
                 treeView.classList.remove('drag-over-root');
             } else if (treeItem && this.draggedItem) {
                 const targetItemId = treeItem.dataset.itemId;
                 const targetItem = this.dataProvider.findNodeById(targetItemId);
+                console.log('🎯 Target item found:', targetItem?.label);
                 
                 if (targetItem && targetItem !== this.draggedItem) {
                     // 드롭 위치 확인 (위, 아래, 또는 안쪽)
@@ -720,9 +726,12 @@ class Explorer {
                     } else if (dropPosition === 'before' || dropPosition === 'after') {
                         // 같은 레벨에서 순서 변경 또는 폴더간 이동
                         console.log('🔄 Reordering at same level:', dropPosition, targetItem.label);
+                        console.log('🔄 Dragged parent:', this.draggedItem.parent?.label || 'root');
+                        console.log('🔄 Target parent:', targetItem.parent?.label || 'root');
                         
                         // 같은 부모인 경우에만 재정렬, 다른 부모인 경우 폴더 이동
                         if (this.draggedItem.parent === targetItem.parent) {
+                            console.log('🔄 Same parent - reordering');
                             this.reorderItem(this.draggedItem, targetItem, dropPosition);
                         } else {
                             // 폴더간 이동: 타겟 아이템의 부모 폴더로 이동
@@ -743,7 +752,13 @@ class Explorer {
                             this.moveItem(this.draggedItem, targetFolder);
                         }
                     }
+                } else if (targetItem === this.draggedItem) {
+                    console.log('❌ Cannot drop item on itself');
+                } else {
+                    console.log('❌ No valid target item found');
                 }
+            } else {
+                console.log('❌ No dragged item or drop target');
             }
             
             // Clean up drag-over styles and position indicators
@@ -1223,12 +1238,22 @@ class Explorer {
                 return;
             }
             
+            console.log('🔄 Current project ID:', appManager.currentProject?.id);
+            console.log('🔄 VSCodeLayout exists:', !!appManager.vscodeLayout);
+            
             // AppManager의 loadProjectData를 호출하여 최신 데이터 로드
+            console.log('🔄 Loading project data...');
             await appManager.loadProjectData();
+            console.log('🔄 Project data loaded, folders:', appManager.currentProject?.folders?.length);
+            console.log('🔄 Project data loaded, diagrams:', appManager.currentProject?.diagrams?.length);
             
             // VSCodeLayout의 BPMN 프로젝트 구조 재생성
             if (appManager.vscodeLayout) {
+                console.log('🔄 Setting up BPMN integration...');
                 await appManager.vscodeLayout.setupBPMNIntegration();
+                console.log('🔄 BPMN integration setup complete');
+            } else {
+                console.warn('❌ VSCodeLayout not found');
             }
             
             console.log('✅ Project data refreshed');
@@ -1483,7 +1508,10 @@ class Explorer {
 
     async moveItem(item, newParent) {
         try {
-            console.log('📁 Moving item:', item.label, 'to:', newParent.label);
+            console.log('📁 Moving item:', item.label, 'to:', newParent.label || 'root');
+            console.log('📁 Item type:', item.type, 'Target type:', newParent.type);
+            console.log('📁 Item ID:', item.folderId || item.diagramId);
+            console.log('📁 Target ID:', newParent.folderId);
             
             // 자기 자신이나 자기 자신의 자식으로 이동하는 것을 방지
             if (item === newParent || this.isDescendantOf(newParent, item)) {
@@ -1513,15 +1541,30 @@ class Explorer {
                 newParentId = newParent.folderId;
             }
             
+            // 루트로 이동하는 경우 가장 마지막 sort_order 계산
+            let newSortOrder = null;
+            if (!newParentId) { // 루트로 이동하는 경우
+                const maxSortOrder = await this.getMaxSortOrderInParent(newParentId);
+                newSortOrder = maxSortOrder + 1;
+                console.log('📁 Moving to root - new sort_order:', newSortOrder);
+            }
+            
             if (item.type === 'folder') {
                 // 폴더 이동
-                result = await dbManager.updateFolder(item.folderId, { parent_id: newParentId });
+                const updates = { parent_id: newParentId };
+                if (newSortOrder !== null) {
+                    updates.sort_order = newSortOrder;
+                }
+                result = await dbManager.updateFolder(item.folderId, updates);
             } else {
                 // 다이어그램 이동
                 const updates = {
                     folder_id: newParentId,
                     last_modified_by: appManager.currentUser?.id
                 };
+                if (newSortOrder !== null) {
+                    updates.sort_order = newSortOrder;
+                }
                 result = await dbManager.updateDiagram(item.diagramId, updates);
             }
             
@@ -1532,6 +1575,22 @@ class Explorer {
             }
             
             console.log('✅ Item moved successfully:', result.data);
+            
+            // 5초 후에 데이터베이스에서 실제 업데이트 확인
+            setTimeout(async () => {
+                console.log('🔍 Verifying database update...');
+                if (item.type === 'folder') {
+                    const { dbManager } = await import('../lib/database.js');
+                    const projectFolders = await dbManager.getProjectFolders(appManager.currentProject.id);
+                    const updatedFolder = projectFolders.data?.find(f => f.id === item.folderId);
+                    console.log('🔍 Updated folder in DB:', updatedFolder);
+                } else {
+                    const { dbManager } = await import('../lib/database.js');
+                    const projectDiagrams = await dbManager.getProjectDiagrams(appManager.currentProject.id);
+                    const updatedDiagram = projectDiagrams.data?.find(d => d.id === item.diagramId);
+                    console.log('🔍 Updated diagram in DB:', updatedDiagram);
+                }
+            }, 1000);
             
             // 프로젝트 데이터 새로고침 후 트리 업데이트
             await this.refreshProjectData();
@@ -1558,6 +1617,54 @@ class Explorer {
             current = current.parent;
         }
         return false;
+    }
+
+    async getMaxSortOrderInParent(parentId) {
+        try {
+            const appManager = window.appManager;
+            if (!appManager || !appManager.currentProject) {
+                return 0;
+            }
+            
+            const { dbManager } = await import('../lib/database.js');
+            
+            // 폴더와 다이어그램 모두에서 최대 sort_order 찾기
+            const foldersResult = await dbManager.getProjectFolders(appManager.currentProject.id);
+            const diagramsResult = await dbManager.getProjectDiagrams(appManager.currentProject.id);
+            
+            let maxSortOrder = 0;
+            
+            // 폴더에서 최대 sort_order 찾기
+            if (foldersResult.data) {
+                const targetFolders = foldersResult.data.filter(f => 
+                    parentId ? f.parent_id === parentId : !f.parent_id
+                );
+                targetFolders.forEach(folder => {
+                    if (folder.sort_order > maxSortOrder) {
+                        maxSortOrder = folder.sort_order;
+                    }
+                });
+            }
+            
+            // 다이어그램에서 최대 sort_order 찾기
+            if (diagramsResult.data) {
+                const targetDiagrams = diagramsResult.data.filter(d => 
+                    parentId ? d.folder_id === parentId : !d.folder_id
+                );
+                targetDiagrams.forEach(diagram => {
+                    if (diagram.sort_order > maxSortOrder) {
+                        maxSortOrder = diagram.sort_order;
+                    }
+                });
+            }
+            
+            console.log('📊 Max sort_order in parent:', parentId || 'root', '=', maxSortOrder);
+            return maxSortOrder;
+            
+        } catch (error) {
+            console.error('Error getting max sort order:', error);
+            return 0;
+        }
     }
 
     checkDuplicateNameForMove(name, type, newParentItem, currentItem) {
@@ -1987,6 +2094,8 @@ class Explorer {
             
             // Update sort order for all siblings in the parent
             const updatedItems = [];
+            console.log('🔄 Siblings after reorder:', siblings.map(s => ({ label: s.label, type: s.type })));
+            
             siblings.forEach((item, index) => {
                 item.sortOrder = index;
                 
@@ -1996,18 +2105,28 @@ class Explorer {
                     itemType = 'diagram';
                 }
                 
-                updatedItems.push({
+                const updateItem = {
                     type: itemType,
                     folderId: item.folderId,
                     diagramId: item.diagramId,
                     sortOrder: index
-                });
+                };
+                
+                console.log(`🔄 Item ${index}: ${item.label} -> sort_order: ${index}`);
+                updatedItems.push(updateItem);
             });
+            
+            console.log('🔄 Final updatedItems:', updatedItems);
             
             // Save order to database
             console.log('💾 Saving new order to database...');
+            console.log('💾 Updated items:', updatedItems);
+            console.log('💾 dbManager exists:', !!window.dbManager);
+            console.log('💾 updateItemOrder exists:', !!window.dbManager?.updateItemOrder);
+            
             if (window.dbManager && window.dbManager.updateItemOrder) {
                 const result = await window.dbManager.updateItemOrder(updatedItems);
+                console.log('💾 Update result:', result);
                 if (!result.success) {
                     console.error('❌ Failed to save order to database:', result.error);
                     // 실패시 원래 순서로 복원
@@ -2015,6 +2134,8 @@ class Explorer {
                     siblings.splice(draggedIndex, 0, draggedItem);
                     return;
                 }
+            } else {
+                console.error('❌ dbManager or updateItemOrder not available');
             }
             
             console.log('✅ Item reordered and saved successfully');

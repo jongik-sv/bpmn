@@ -156,23 +156,39 @@ export class CollaborationManager {
       if (this.awareness) {
         if (document.hidden) {
           // 페이지가 숨겨질 때 타임스탬프 업데이트
-          const currentUser = this.awareness.getLocalState()?.user;
-          if (currentUser) {
-            this.awareness.setLocalStateField('user', {
-              ...currentUser,
-              timestamp: Date.now(),
-              status: 'away'
-            });
+          if (this.awareness) {
+            try {
+              // Yjs Awareness API: localState 속성 사용
+              const localState = this.awareness.localState;
+              const currentUser = localState?.user;
+              if (currentUser) {
+                this.awareness.setLocalStateField('user', {
+                  ...currentUser,
+                  timestamp: Date.now(),
+                  status: 'away'
+                });
+              }
+            } catch (error) {
+              console.warn('⚠️ Error accessing awareness local state:', error);
+            }
           }
         } else {
           // 페이지가 다시 보일 때 타임스탬프 업데이트 및 동기화
-          const currentUser = this.awareness.getLocalState()?.user;
-          if (currentUser) {
-            this.awareness.setLocalStateField('user', {
-              ...currentUser,
-              timestamp: Date.now(),
-              status: 'active'
-            });
+          if (this.awareness) {
+            try {
+              // Yjs Awareness API: localState 속성 사용
+              const localState = this.awareness.localState;
+              const currentUser = localState?.user;
+              if (currentUser) {
+                this.awareness.setLocalStateField('user', {
+                  ...currentUser,
+                  timestamp: Date.now(),
+                  status: 'active'
+                });
+              }
+            } catch (error) {
+              console.warn('⚠️ Error accessing awareness local state:', error);
+            }
           }
           
           // 페이지가 다시 보일 때 동기화 트리거
@@ -373,7 +389,13 @@ export class CollaborationManager {
     if (!this.awareness) {
       return null;
     }
-    return this.awareness.getLocalState()?.user || null;
+    try {
+      // Yjs Awareness API: localState 속성 사용
+      return this.awareness.localState?.user || null;
+    } catch (error) {
+      console.warn('⚠️ Error accessing awareness local state:', error);
+      return null;
+    }
   }
 }
 

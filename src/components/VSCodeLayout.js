@@ -829,26 +829,35 @@ class VSCodeLayout {
         const folders = currentProject.folders || [];
         const diagrams = currentProject.diagrams || [];
         
-        // 루트 폴더들 (parent_id가 null인 폴더들) - sort_order로 정렬
+        // 루트 레벨의 모든 아이템들 (폴더 + 다이어그램)을 sort_order로 정렬
         const rootFolders = folders
             .filter(folder => !folder.parent_id)
-            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+            .map(f => ({ ...f, itemType: 'folder' }));
         
-        // 루트 다이어그램들 (folder_id가 null인 다이어그램들) - sort_order로 정렬
         const rootDiagrams = diagrams
             .filter(diagram => !diagram.folder_id)
+            .map(d => ({ ...d, itemType: 'diagram' }));
+        
+        // 루트 폴더와 다이어그램을 합쳐서 sort_order로 정렬
+        const allRootItems = [...rootFolders, ...rootDiagrams]
             .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
         
-        // 폴더들을 트리에 추가 (재귀적으로)
-        for (const folder of rootFolders) {
-            const folderItem = await this.createFolderTreeItem(folder, folders, diagrams);
-            root.addChild(folderItem);
-        }
+        console.log('📁 Root items sorted by sort_order:', 
+            allRootItems.map(item => ({ 
+                name: item.name, 
+                type: item.itemType, 
+                sort_order: item.sort_order 
+            })));
         
-        // 루트 다이어그램들 추가
-        for (const diagram of rootDiagrams) {
-            const diagramItem = await this.createDiagramTreeItem(diagram);
-            root.addChild(diagramItem);
+        // 정렬된 순서대로 루트에 추가
+        for (const item of allRootItems) {
+            if (item.itemType === 'folder') {
+                const folderItem = await this.createFolderTreeItem(item, folders, diagrams);
+                root.addChild(folderItem);
+            } else {
+                const diagramItem = await this.createDiagramTreeItem(item);
+                root.addChild(diagramItem);
+            }
         }
         
         // 데이터 프로바이더에 루트 설정
@@ -874,24 +883,35 @@ class VSCodeLayout {
         folderItem.tooltip = `폴더: ${folder.name}`;
         folderItem.sortOrder = folder.sort_order || 0;
         
-        // 하위 폴더들 찾기 (sort_order로 정렬)
+        // 이 폴더의 모든 자식 아이템들 (폴더 + 다이어그램)을 sort_order로 정렬
         const childFolders = allFolders
             .filter(f => f.parent_id === folder.id)
-            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+            .map(f => ({ ...f, itemType: 'folder' }));
         
-        for (const childFolder of childFolders) {
-            const childItem = await this.createFolderTreeItem(childFolder, allFolders, allDiagrams);
-            folderItem.addChild(childItem);
-        }
-        
-        // 이 폴더 내의 다이어그램들 찾기 (sort_order로 정렬)
         const folderDiagrams = allDiagrams
             .filter(d => d.folder_id === folder.id)
+            .map(d => ({ ...d, itemType: 'diagram' }));
+        
+        // 폴더와 다이어그램을 합쳐서 sort_order로 정렬
+        const allChildren = [...childFolders, ...folderDiagrams]
             .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
         
-        for (const diagram of folderDiagrams) {
-            const diagramItem = await this.createDiagramTreeItem(diagram);
-            folderItem.addChild(diagramItem);
+        console.log(`📁 Folder "${folder.name}" children sorted by sort_order:`, 
+            allChildren.map(item => ({ 
+                name: item.name, 
+                type: item.itemType, 
+                sort_order: item.sort_order 
+            })));
+        
+        // 정렬된 순서대로 트리에 추가
+        for (const child of allChildren) {
+            if (child.itemType === 'folder') {
+                const childItem = await this.createFolderTreeItem(child, allFolders, allDiagrams);
+                folderItem.addChild(childItem);
+            } else {
+                const diagramItem = await this.createDiagramTreeItem(child);
+                folderItem.addChild(diagramItem);
+            }
         }
         
         return folderItem;

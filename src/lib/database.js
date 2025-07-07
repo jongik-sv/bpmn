@@ -17,8 +17,49 @@ export class DatabaseManager {
     if (this.forceLocalMode) {
       console.log('🔧 Force local mode enabled - using localStorage (RLS bypass)');
       console.log('💡 To enable database mode, run: window.disableLocalMode()');
+      
+      // 기존 로컬 데이터에 sort_order 초기화
+      this.initializeSortOrderForLocalData();
     } else {
       console.log('🌐 Database mode enabled - using Supabase');
+    }
+  }
+
+  /**
+   * 기존 로컬 데이터에 sort_order 초기화
+   */
+  initializeSortOrderForLocalData() {
+    try {
+      let updated = false;
+      
+      // 폴더 sort_order 초기화
+      const folders = JSON.parse(localStorage.getItem('bpmn_folders') || '[]');
+      for (let i = 0; i < folders.length; i++) {
+        if (typeof folders[i].sort_order === 'undefined') {
+          folders[i].sort_order = i;
+          updated = true;
+        }
+      }
+      if (updated) {
+        localStorage.setItem('bpmn_folders', JSON.stringify(folders));
+        console.log('🔧 Initialized sort_order for existing folders');
+      }
+      
+      // 다이어그램 sort_order 초기화
+      updated = false;
+      const diagrams = JSON.parse(localStorage.getItem('bpmn_diagrams') || '[]');
+      for (let i = 0; i < diagrams.length; i++) {
+        if (typeof diagrams[i].sort_order === 'undefined') {
+          diagrams[i].sort_order = i;
+          updated = true;
+        }
+      }
+      if (updated) {
+        localStorage.setItem('bpmn_diagrams', JSON.stringify(diagrams));
+        console.log('🔧 Initialized sort_order for existing diagrams');
+      }
+    } catch (error) {
+      console.error('Error initializing sort_order for local data:', error);
     }
   }
 
@@ -481,7 +522,9 @@ export class DatabaseManager {
         `)
         .eq('project_id', projectId)
         .eq('is_active', true)
-        .order('updated_at', { ascending: false });
+        .order('sort_order', { ascending: true });
+      
+      console.log('📄 Diagrams from DB (sorted by sort_order):', data?.map(d => ({ name: d.name, sort_order: d.sort_order, folder_id: d.folder_id })));
 
       if (error) {
         console.error('Error fetching project diagrams, using local fallback:', error);
@@ -507,6 +550,7 @@ export class DatabaseManager {
         )
         .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
       
+      console.log('📄 Diagrams from Local (sorted by sort_order):', projectDiagrams?.map(d => ({ name: d.name, sort_order: d.sort_order, folder_id: d.folder_id })));
       console.log('✅ Loaded diagrams from local storage:', projectDiagrams.length);
       return { data: projectDiagrams, error: null };
     } catch (error) {
@@ -528,6 +572,19 @@ export class DatabaseManager {
     }
 
     try {
+      // Get the next sort_order for this folder
+      const { data: existingDiagrams } = await this.supabase
+        .from('diagrams')
+        .select('sort_order')
+        .eq('project_id', diagramData.project_id)
+        .eq('folder_id', diagramData.folder_id || null)
+        .order('sort_order', { ascending: false })
+        .limit(1);
+
+      const nextSortOrder = existingDiagrams && existingDiagrams.length > 0 
+        ? existingDiagrams[0].sort_order + 1 
+        : 0;
+
       const { data, error } = await this.supabase
         .from('diagrams')
         .insert({
@@ -537,7 +594,8 @@ export class DatabaseManager {
           description: diagramData.description,
           bpmn_xml: diagramData.bpmn_xml,
           created_by: diagramData.created_by,
-          last_modified_by: diagramData.created_by
+          last_modified_by: diagramData.created_by,
+          sort_order: nextSortOrder
         })
         .select()
         .single();
@@ -562,6 +620,17 @@ export class DatabaseManager {
     try {
       const diagrams = JSON.parse(localStorage.getItem('bpmn_diagrams') || '[]');
       
+      // Calculate next sort_order for this folder
+      const siblingsInSameFolder = diagrams.filter(d => 
+        d.project_id === diagramData.project_id && 
+        d.folder_id === (diagramData.folder_id || null) &&
+        d.is_active !== false
+      );
+      const maxSortOrder = siblingsInSameFolder.length > 0 
+        ? Math.max(...siblingsInSameFolder.map(d => d.sort_order || 0))
+        : -1;
+      const nextSortOrder = maxSortOrder + 1;
+      
       const newDiagram = {
         id: 'local_diagram_' + Date.now(),
         project_id: diagramData.project_id,
@@ -574,7 +643,8 @@ export class DatabaseManager {
         version: 1,
         is_active: true,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        sort_order: nextSortOrder
       };
       
       diagrams.push(newDiagram);
@@ -592,11 +662,16 @@ export class DatabaseManager {
    * 다이어그램 업데이트
    */
   async updateDiagram(diagramId, updates) {
+    console.log('🔧 updateDiagram called:', { diagramId, updates });
+    console.log('🔧 forceLocalMode:', this.forceLocalMode);
+    
     if (this.forceLocalMode) {
+      console.log('🔧 Using local mode for diagram update');
       return this.updateDiagramLocal(diagramId, updates);
     }
 
     try {
+      console.log('🔧 Updating diagram in Supabase...');
       const { data, error } = await this.supabase
         .from('diagrams')
         .update({
@@ -614,6 +689,7 @@ export class DatabaseManager {
         return this.updateDiagramLocal(diagramId, updates);
       }
 
+      console.log('✅ Diagram updated in Supabase:', data);
       return { data, error: null };
     } catch (error) {
       console.error('Diagram update error, using local fallback:', error);
@@ -668,11 +744,26 @@ export class DatabaseManager {
     if (this.supabase) {
       try {
         console.log('Creating folder in Supabase...');
+        
+        // Get the next sort_order for this parent folder
+        const { data: existingFolders } = await this.supabase
+          .from('folders')
+          .select('sort_order')
+          .eq('project_id', folderData.project_id)
+          .eq('parent_id', folderData.parent_id || null)
+          .order('sort_order', { ascending: false })
+          .limit(1);
+
+        const nextSortOrder = existingFolders && existingFolders.length > 0 
+          ? existingFolders[0].sort_order + 1 
+          : 0;
+
         const insertData = {
           project_id: folderData.project_id,
           parent_id: folderData.parent_id || null,
           name: folderData.name,
-          created_by: folderData.created_by
+          created_by: folderData.created_by,
+          sort_order: nextSortOrder
         };
         console.log('Insert data:', insertData);
 
@@ -715,6 +806,16 @@ export class DatabaseManager {
       const folders = JSON.parse(localStorage.getItem('bpmn_folders') || '[]');
       console.log('Existing folders:', folders);
       
+      // Calculate next sort_order for this parent folder
+      const siblingsInSameParent = folders.filter(f => 
+        f.project_id === folderData.project_id && 
+        f.parent_id === (folderData.parent_id || null)
+      );
+      const maxSortOrder = siblingsInSameParent.length > 0 
+        ? Math.max(...siblingsInSameParent.map(f => f.sort_order || 0))
+        : -1;
+      const nextSortOrder = maxSortOrder + 1;
+      
       const newFolder = {
         id: 'folder-' + Date.now(),
         project_id: folderData.project_id,
@@ -723,7 +824,8 @@ export class DatabaseManager {
         created_by: folderData.created_by,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        path: this.calculateFolderPath(folders, folderData.parent_id, folderData.name)
+        path: this.calculateFolderPath(folders, folderData.parent_id, folderData.name),
+        sort_order: nextSortOrder
       };
       
       console.log('New folder object:', newFolder);
@@ -753,7 +855,9 @@ export class DatabaseManager {
           .from('folders')
           .select('*')
           .eq('project_id', projectId)
-          .order('path');
+          .order('sort_order', { ascending: true });
+        
+        console.log('📁 Folders from DB (sorted by sort_order):', data?.map(f => ({ name: f.name, sort_order: f.sort_order, parent_id: f.parent_id })));
 
         if (error) {
           console.error('Get project folders error, using local fallback:', error);
@@ -779,6 +883,8 @@ export class DatabaseManager {
       const projectFolders = folders
         .filter(folder => folder.project_id === projectId)
         .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+      
+      console.log('📁 Folders from Local (sorted by sort_order):', projectFolders?.map(f => ({ name: f.name, sort_order: f.sort_order, parent_id: f.parent_id })));
       
       return { data: projectFolders, error: null };
     } catch (error) {
@@ -914,12 +1020,17 @@ export class DatabaseManager {
    * 폴더 업데이트 (드래그앤드롭용)
    */
   async updateFolder(folderId, updates) {
+    console.log('🔧 updateFolder called:', { folderId, updates });
+    console.log('🔧 forceLocalMode:', this.forceLocalMode);
+    
     if (this.forceLocalMode) {
+      console.log('🔧 Using local mode for folder update');
       return this.updateFolderLocal(folderId, updates);
     }
 
     if (this.supabase) {
       try {
+        console.log('🔧 Updating folder in Supabase...');
         const { data, error } = await this.supabase
           .from('folders')
           .update({
@@ -935,12 +1046,14 @@ export class DatabaseManager {
           return this.updateFolderLocal(folderId, updates);
         }
 
+        console.log('✅ Folder updated in Supabase:', data);
         return { data, error: null };
       } catch (error) {
         console.error('Update folder error, falling back to local:', error);
         return this.updateFolderLocal(folderId, updates);
       }
     } else {
+      console.log('🔧 No Supabase instance, using local mode');
       return this.updateFolderLocal(folderId, updates);
     }
   }
@@ -1056,34 +1169,41 @@ export class DatabaseManager {
    * 여러 항목의 순서를 일괄 업데이트
    */
   async updateItemOrder(items) {
+    console.log('💾 updateItemOrder called with:', items);
+    console.log('💾 forceLocalMode:', this.forceLocalMode);
+    
     if (this.forceLocalMode) {
+      console.log('💾 Using local mode for order update');
       return this.updateItemOrderLocal(items);
     }
 
     try {
       const updates = [];
       
+      console.log('💾 Processing items for Supabase update...');
       for (const item of items) {
+        console.log(`💾 Processing ${item.type} with ID ${item.folderId || item.diagramId} -> sort_order: ${item.sortOrder}`);
+        
         if (item.type === 'folder') {
-          updates.push(
-            this.supabase
-              .from('folders')
-              .update({ 
-                sort_order: item.sortOrder,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', item.folderId)
-          );
+          const updateQuery = this.supabase
+            .from('folders')
+            .update({ 
+              sort_order: item.sortOrder,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', item.folderId);
+          updates.push(updateQuery);
+          console.log(`💾 Added folder update: ID ${item.folderId} -> sort_order ${item.sortOrder}`);
         } else if (item.type === 'diagram') {
-          updates.push(
-            this.supabase
-              .from('diagrams')
-              .update({ 
-                sort_order: item.sortOrder,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', item.diagramId)
-          );
+          const updateQuery = this.supabase
+            .from('diagrams')
+            .update({ 
+              sort_order: item.sortOrder,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', item.diagramId);
+          updates.push(updateQuery);
+          console.log(`💾 Added diagram update: ID ${item.diagramId} -> sort_order ${item.sortOrder}`);
         }
       }
 
@@ -1099,6 +1219,29 @@ export class DatabaseManager {
       }
 
       console.log('✅ Item order updated in database');
+      
+      // 업데이트 후 실제 데이터 확인
+      setTimeout(async () => {
+        console.log('🔍 Verifying order updates in database...');
+        for (const item of items) {
+          if (item.type === 'folder') {
+            const { data } = await this.supabase
+              .from('folders')
+              .select('id, name, sort_order')
+              .eq('id', item.folderId)
+              .single();
+            console.log(`🔍 Folder ${data?.name}: expected ${item.sortOrder}, actual ${data?.sort_order}`);
+          } else if (item.type === 'diagram') {
+            const { data } = await this.supabase
+              .from('diagrams')
+              .select('id, name, sort_order')
+              .eq('id', item.diagramId)
+              .single();
+            console.log(`🔍 Diagram ${data?.name}: expected ${item.sortOrder}, actual ${data?.sort_order}`);
+          }
+        }
+      }, 500);
+      
       return { success: true, error: null };
 
     } catch (error) {
@@ -1174,6 +1317,16 @@ window.disableLocalMode = () => {
   localStorage.removeItem('bpmn_force_local');
   console.log('🌐 Database mode enabled. Please refresh the page.');
   location.reload();
+};
+
+// 즉시 데이터베이스 모드로 전환 (개발용)
+window.switchToDatabaseMode = () => {
+  localStorage.removeItem('bpmn_force_local');
+  if (window.dbManager) {
+    window.dbManager.forceLocalMode = false;
+    console.log('🌐 Switched to database mode immediately');
+    console.log('🔧 Current forceLocalMode:', window.dbManager.forceLocalMode);
+  }
 };
 
 window.clearLocalData = () => {

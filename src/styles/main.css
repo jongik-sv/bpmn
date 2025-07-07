@@ -93,7 +93,7 @@
 }
 
 .tree-view.drag-over-root::after {
-  content: '루트 폴더로 이동';
+  content: '루트 폴더 맨 아래로 이동';
   position: absolute;
   bottom: 10px;
   right: 10px;
