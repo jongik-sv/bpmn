@@ -90,16 +90,22 @@ class VSCodeLayout {
                 </div>
                 <div class="editor-container" style="flex: 1; display: flex; flex-direction: column; background-color: #1e1e1e; overflow: hidden; min-height: 0;">
                     <div class="editor-content" style="flex: 1; position: relative; min-height: 0; display: flex; overflow: hidden;">
-                        <div class="editor-welcome-message" style="flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; color: #cccccc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;">
+                        <div class="editor-welcome-message" style="flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; color: #cccccc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif; background-color: #1e1e1e;">
                             <div style="text-align: center; max-width: 400px;">
                                 <div style="font-size: 48px; margin-bottom: 24px; opacity: 0.6;">📄</div>
                                 <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 300; color: #ffffff;">BPMN 다이어그램을 선택하세요</h2>
                                 <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #999999;">
                                     왼쪽 탐색기에서 BPMN 다이어그램을 클릭하여 편집을 시작하세요.
                                 </p>
-                                <div style="display: flex; gap: 12px; justify-content: center; font-size: 12px; color: #666666;">
-                                    <span>📁 새 폴더 만들기</span>
-                                    <span>📄 새 다이어그램 만들기</span>
+                                <div style="display: flex; gap: 24px; justify-content: center; align-items: center; margin-top: 32px;">
+                                    <div style="text-align: center; font-size: 14px; color: #888888;">
+                                        <div style="font-size: 28px; margin-bottom: 8px;">📁</div>
+                                        <span>새 폴더 만들기</span>
+                                    </div>
+                                    <div style="text-align: center; font-size: 14px; color: #888888;">
+                                        <div style="font-size: 28px; margin-bottom: 8px;">📄</div>
+                                        <span>새 다이어그램 만들기</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -997,6 +1003,13 @@ class VSCodeLayout {
                 if (appManager.bpmnEditor) {
                     await this.integrateBPMNEditor(appManager.bpmnEditor);
                 }
+            }
+            
+            // BPMN 에디터가 아직 실제로 초기화되지 않았다면 지금 초기화
+            if (appManager.bpmnEditor && !appManager.bpmnEditor.isInitialized) {
+                console.log('🔧 BPMN Editor instance exists but not initialized, initializing now...');
+                await appManager.bpmnEditor.initializeWhenReady();
+                console.log('✅ BPMN Editor initialized on first document selection');
             }
             
             // 에디터 컨테이너 확인 및 준비

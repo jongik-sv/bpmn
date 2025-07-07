@@ -1254,11 +1254,11 @@ export class AppManager {
       
       if (!this.bpmnEditor) {
         this.bpmnEditor = new BpmnEditor();
-        console.log('✅ BPMN Editor instance created');
+        console.log('✅ BPMN Editor instance created (not initialized yet - waiting for document selection)');
         
-        // 수동으로 초기화 실행 (지연 초기화)
-        await this.bpmnEditor.initializeWhenReady();
-        console.log('✅ BPMN Editor initialized');
+        // 지연 초기화: 문서가 선택될 때까지 실제 초기화를 하지 않음
+        // await this.bpmnEditor.initializeWhenReady(); // 이 부분을 주석 처리
+        // console.log('✅ BPMN Editor initialized');
       }
       
       // 현재 사용자 설정
