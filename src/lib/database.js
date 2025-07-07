@@ -672,27 +672,61 @@ export class DatabaseManager {
 
     try {
       console.log('🔧 Updating diagram in Supabase...');
+      
+      // 버전 관리를 서버 트리거에 맡기고 클라이언트에서는 버전을 수동으로 증가시키지 않음
+      const updateData = {
+        ...updates,
+        updated_at: new Date().toISOString()
+      };
+      
+      // version 필드는 제거 (서버 트리거가 처리)
+      delete updateData.version;
+      
+      console.log('🔧 Update data:', updateData);
+      
       const { data, error } = await this.supabase
         .from('diagrams')
-        .update({
-          ...updates,
-          version: updates.version ? updates.version + 1 : undefined,
-          updated_at: new Date().toISOString(),
-          last_modified_by: updates.last_modified_by
-        })
+        .update(updateData)
         .eq('id', diagramId)
         .select()
         .single();
 
       if (error) {
-        console.error('Error updating diagram, using local fallback:', error);
+        console.error('❌ Supabase diagram update error:', error);
+        
+        // 409 Conflict 오류인 경우 특별 처리
+        if (error.code === '23505' || error.details?.includes('already exists')) {
+          console.log('🔄 Retrying update without version management...');
+          
+          // 버전 관련 필드를 완전히 제거하고 재시도
+          const retryData = { ...updateData };
+          delete retryData.version_number;
+          delete retryData.version;
+          
+          const { data: retryResult, error: retryError } = await this.supabase
+            .from('diagrams')
+            .update(retryData)
+            .eq('id', diagramId)
+            .select()
+            .single();
+            
+          if (retryError) {
+            console.error('❌ Retry failed, using local fallback:', retryError);
+            return this.updateDiagramLocal(diagramId, updates);
+          }
+          
+          console.log('✅ Diagram updated in Supabase after retry:', retryResult);
+          return { data: retryResult, error: null };
+        }
+        
+        // 다른 오류의 경우 로컬 fallback 사용
         return this.updateDiagramLocal(diagramId, updates);
       }
 
       console.log('✅ Diagram updated in Supabase:', data);
       return { data, error: null };
     } catch (error) {
-      console.error('Diagram update error, using local fallback:', error);
+      console.error('❌ Diagram update error, using local fallback:', error);
       return this.updateDiagramLocal(diagramId, updates);
     }
   }

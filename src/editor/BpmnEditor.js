@@ -187,24 +187,62 @@ export class BpmnEditor {
    * 협업 룸 변경
    */
   async changeCollaborationRoom(roomId) {
+    if (!roomId) {
+      console.warn('⚠️ Room ID not provided for collaboration room change');
+      return;
+    }
+    
     if (this.collaborationModule) {
       try {
+        console.log('🔄 Starting collaboration room change to:', roomId);
+        
         const userInfo = this.currentUser ? {
           id: this.currentUser.id,
           name: this.currentUser.user_metadata?.display_name || this.currentUser.email,
           email: this.currentUser.email
         } : null;
         
+        console.log('👤 User info for room change:', userInfo);
+        
         await this.collaborationModule.changeRoom(roomId, userInfo);
-        console.log('✅ Collaboration room changed to:', roomId);
+        console.log('✅ Collaboration room changed successfully to:', roomId);
+        
+        // 성공 알림
+        if (window.appManager) {
+          window.appManager.showNotification(`협업 룸이 "${roomId}"로 변경되었습니다.`, 'success');
+        }
+        
       } catch (error) {
         console.error('❌ Failed to change collaboration room:', error);
+        console.error('❌ Error details:', {
+          message: error.message,
+          stack: error.stack,
+          roomId: roomId,
+          userInfo: this.currentUser
+        });
+        
         if (window.appManager) {
-          window.appManager.showNotification('협업 룸 변경에 실패했습니다.', 'error');
+          window.appManager.showNotification(`협업 룸 변경에 실패했습니다: ${error.message}`, 'error');
         }
       }
     } else {
       console.warn('⚠️ Collaboration module not initialized, cannot change room.');
+      
+      // 협업 모듈 재초기화 시도
+      try {
+        console.log('🔄 Attempting to reinitialize collaboration module...');
+        await this.initializeCollaboration(roomId);
+        console.log('✅ Collaboration module reinitialized successfully');
+        
+        if (window.appManager) {
+          window.appManager.showNotification('협업 모듈이 재초기화되었습니다.', 'info');
+        }
+      } catch (reinitError) {
+        console.error('❌ Failed to reinitialize collaboration module:', reinitError);
+        if (window.appManager) {
+          window.appManager.showNotification('협업 모듈 초기화에 실패했습니다.', 'error');
+        }
+      }
     }
   }
 
@@ -322,30 +360,53 @@ export class BpmnEditor {
     try {
       const { xml } = await this.modeler.saveXML({ format: true });
       
+      // 다이어그램 ID 결정 (id 또는 diagramId 사용)
+      const diagramId = this.currentDiagram.id || this.currentDiagram.diagramId;
+      
+      if (!diagramId) {
+        console.warn('No valid diagram ID found for auto-save:', this.currentDiagram);
+        this.saveToLocalStorage(xml);
+        this.showAutoSaveStatus('로컬 저장됨');
+        return;
+      }
+      
+      console.log('🔄 Auto-saving diagram:', { 
+        id: diagramId, 
+        name: this.currentDiagram.name || this.currentDiagram.title 
+      });
+      
       // 데이터베이스에 자동 저장
       if (window.dbManager) {
-        const result = await window.dbManager.updateDiagram(this.currentDiagram.id, {
+        const updateData = {
           bpmn_xml: xml,
+          content: xml, // content 필드도 함께 업데이트
           last_modified_by: this.currentUser?.id
-        });
+        };
+        
+        const result = await window.dbManager.updateDiagram(diagramId, updateData);
         
         if (result.error) {
-          console.warn('Auto-save to database failed:', result.error);
+          console.warn('❌ Auto-save to database failed:', result.error);
           // 로컬 스토리지에 백업 저장
           this.saveToLocalStorage(xml);
+          this.showAutoSaveStatus('로컬 저장됨');
         } else {
-          console.log('Auto-saved:', this.currentDiagram.name);
-          // 조용한 알림 (상태 표시)
+          console.log('✅ Auto-saved successfully:', this.currentDiagram.name || this.currentDiagram.title);
           this.showAutoSaveStatus('저장됨');
+          
+          // 현재 다이어그램 데이터 업데이트
+          this.currentDiagram.content = xml;
+          this.currentDiagram.bpmn_xml = xml;
         }
       } else {
         // DB 연결이 없으면 로컬에 저장
+        console.log('📁 Saving to local storage (no DB connection)');
         this.saveToLocalStorage(xml);
         this.showAutoSaveStatus('로컬 저장됨');
       }
       
     } catch (error) {
-      console.warn('Auto-save failed:', error);
+      console.error('❌ Auto-save failed:', error);
       this.showAutoSaveStatus('저장 실패');
     }
   }

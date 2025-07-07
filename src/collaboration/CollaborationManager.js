@@ -318,32 +318,62 @@ export class CollaborationManager {
    * 협업 세션을 종료합니다.
    */
   disconnect() {
-    console.log('Disconnecting collaboration session...');
+    console.log('🔌 Disconnecting collaboration session...');
     
-    // Awareness에서 사용자 제거
-    if (this.awareness) {
-      this.awareness.setLocalState(null);
-    }
-    
-    if (this.provider) {
-      this.provider.disconnect();
-      this.provider.destroy();
+    try {
+      // Awareness에서 사용자 제거
+      if (this.awareness) {
+        try {
+          this.awareness.setLocalState(null);
+        } catch (error) {
+          console.warn('⚠️ Error clearing awareness state:', error);
+        }
+      }
+      
+      // Provider 정리
+      if (this.provider) {
+        try {
+          this.provider.disconnect();
+          this.provider.destroy();
+        } catch (error) {
+          console.warn('⚠️ Error disconnecting provider:', error);
+        }
+        this.provider = null;
+      }
+      
+      // Yjs document 정리
+      if (this.ydoc) {
+        try {
+          this.ydoc.destroy();
+        } catch (error) {
+          console.warn('⚠️ Error destroying Y.Doc:', error);
+        }
+        this.ydoc = null;
+      }
+      
+      // 상태 초기화
+      this.awareness = null;
+      this.isConnected = false;
+      this.listeners.clear();
+      this.userId = null;
+      this.userColor = null;
+      this.currentRoomId = null;
+      
+      console.log('✅ 협업 세션이 안전하게 종료되었습니다.');
+      
+    } catch (error) {
+      console.error('❌ Error during collaboration session disconnect:', error);
+      
+      // 강제 초기화
       this.provider = null;
-    }
-    
-    if (this.ydoc) {
-      this.ydoc.destroy();
       this.ydoc = null;
+      this.awareness = null;
+      this.isConnected = false;
+      this.listeners.clear();
+      this.userId = null;
+      this.userColor = null;
+      this.currentRoomId = null;
     }
-    
-    this.awareness = null;
-    this.isConnected = false;
-    this.listeners.clear();
-    this.userId = null;
-    this.userColor = null;
-    this.currentRoomId = null;
-    
-    console.log('협업 세션이 종료되었습니다.');
   }
 
   /**

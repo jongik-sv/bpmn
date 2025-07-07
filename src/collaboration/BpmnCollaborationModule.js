@@ -548,21 +548,28 @@ export class BpmnCollaborationModule {
     console.log(`🔄 협업 룸 변경: ${newRoomId}`);
     
     try {
+      // 연결 해제 전에 사용자 정보 백업
+      let currentUserInfo = null;
+      if (this.isInitialized && !userInfo) {
+        // disconnect 하기 전에 사용자 정보 백업
+        currentUserInfo = collaborationManager.getCurrentUser();
+        console.log('💾 백업된 사용자 정보:', currentUserInfo);
+      }
+      
       // 현재 연결 해제
       if (this.isInitialized) {
         collaborationManager.disconnect();
         this.isInitialized = false;
       }
       
-      // 사용자 정보 가져오기 (제공되지 않으면 기존 사용자 정보 사용)
-      const currentUserInfo = userInfo || collaborationManager.getCurrentUser();
-      
-      // 사용자 정보가 없으면 기본값 사용
-      const finalUserInfo = currentUserInfo || {
+      // 사용자 정보 결정 (우선순위: 매개변수 > 백업된 정보 > 기본값)
+      const finalUserInfo = userInfo || currentUserInfo || {
         id: 'anonymous-' + Date.now(),
         name: 'Anonymous User',
         email: 'anonymous@example.com'
       };
+      
+      console.log('👤 사용할 사용자 정보:', finalUserInfo);
       
       // 새 룸으로 재연결
       await this.initialize(newRoomId, {
@@ -573,7 +580,7 @@ export class BpmnCollaborationModule {
       console.log(`✅ 협업 룸 변경 완료: ${newRoomId}`);
       
     } catch (error) {
-      console.error('협업 룸 변경 실패:', error);
+      console.error('❌ 협업 룸 변경 실패:', error);
       throw error;
     }
   }
