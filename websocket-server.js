@@ -21,15 +21,22 @@ const saveQueue = new Map() // roomId -> save function
 
 // Supabase 클라이언트 설정 (서버 측)
 const { createClient } = require('@supabase/supabase-js')
-const supabaseUrl = process.env.SUPABASE_URL || 'https://your-project.supabase.co'
+const supabaseUrl = process.env.SUPABASE_URL || 'https://yigkpwxaemgcasxtopup.supabase.co'
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'your-service-role-key'
 
 let supabase = null
-try {
-  supabase = createClient(supabaseUrl, supabaseServiceKey)
-  console.log('✅ Supabase client initialized for server-side persistence')
-} catch (error) {
-  console.warn('⚠️ Supabase not configured - documents will only persist in memory')
+
+// 개발 환경에서는 Supabase 연결을 선택적으로 처리
+if (supabaseUrl.includes('your-project.supabase.co') || supabaseServiceKey === 'your-service-role-key') {
+  console.log('⚠️ Supabase not configured properly - documents will only persist in memory')
+  console.log('💡 To enable database persistence, set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables')
+} else {
+  try {
+    supabase = createClient(supabaseUrl, supabaseServiceKey)
+    console.log('✅ Supabase client initialized for server-side persistence')
+  } catch (error) {
+    console.warn('⚠️ Supabase connection failed - documents will only persist in memory:', error.message)
+  }
 }
 
 /**
@@ -37,7 +44,7 @@ try {
  */
 async function loadDocumentFromDatabase(diagramId) {
   if (!supabase) {
-    console.log(`📝 Loading document ${diagramId} - Supabase not configured`)
+    console.log(`📝 Loading document ${diagramId} - Supabase not configured, using in-memory only`)
     return null
   }
 
@@ -51,7 +58,11 @@ async function loadDocumentFromDatabase(diagramId) {
       .single()
 
     if (error) {
-      console.error(`❌ Failed to load document ${diagramId}:`, error)
+      if (error.code === 'PGRST116') {
+        console.log(`📄 Document ${diagramId} not found in database - will create new`)
+      } else {
+        console.error(`❌ Failed to load document ${diagramId}:`, error)
+      }
       return null
     }
 
@@ -59,7 +70,7 @@ async function loadDocumentFromDatabase(diagramId) {
     return data
 
   } catch (error) {
-    console.error(`❌ Error loading document ${diagramId}:`, error)
+    console.warn(`⚠️ Error loading document ${diagramId}, continuing with in-memory:`, error.message)
     return null
   }
 }
@@ -69,7 +80,7 @@ async function loadDocumentFromDatabase(diagramId) {
  */
 async function saveDocumentToDatabase(roomId, ydoc, reason = 'unknown') {
   if (!supabase) {
-    console.log(`📝 Saving document ${roomId} - Supabase not configured, skipping DB save`)
+    console.log(`📝 Saving document ${roomId} - Supabase not configured, keeping in memory only`)
     return false
   }
 
@@ -108,7 +119,8 @@ async function saveDocumentToDatabase(roomId, ydoc, reason = 'unknown') {
       .eq('id', metadata.diagramId)
 
     if (error) {
-      console.error(`❌ Failed to save document ${roomId}:`, error)
+      console.warn(`⚠️ Failed to save document ${roomId} to database:`, error.message)
+      console.log(`📝 Document will remain in memory for this session`)
       return false
     }
 
@@ -117,7 +129,7 @@ async function saveDocumentToDatabase(roomId, ydoc, reason = 'unknown') {
     return true
 
   } catch (error) {
-    console.error(`❌ Error saving document ${roomId}:`, error)
+    console.warn(`⚠️ Error saving document ${roomId}, continuing with in-memory:`, error.message)
     return false
   } finally {
     metadata.saveInProgress = false
