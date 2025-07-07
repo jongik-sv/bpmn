@@ -302,6 +302,9 @@ export class BpmnEditor {
 
       this.container.find('.error pre').text(err.message);
       console.error('Error loading diagram:', err);
+      
+      // 오류를 상위로 전파하여 VSCodeLayout에서도 감지할 수 있도록
+      throw err;
     }
   }
 

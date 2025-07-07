@@ -1001,19 +1001,27 @@ class VSCodeLayout {
 
             // BPMN XML 콘텐츠 가져오기
             let bpmnXml = diagram.bpmn_xml;
-            if (!bpmnXml) {
+            if (!bpmnXml || bpmnXml.trim() === '') {
                 console.log('📜 BPMN XML not found locally, fetching from database...');
                 const { dbManager } = await import('../lib/database.js');
                 const result = await dbManager.getDiagram(diagram.id);
                 
-                if (result.data && result.data.bpmn_xml) {
+                if (result.data && result.data.bpmn_xml && result.data.bpmn_xml.trim() !== '') {
                     bpmnXml = result.data.bpmn_xml;
                     diagram.bpmn_xml = bpmnXml; // 나중을 위해 캐시
                     console.log('✅ Fetched and cached BPMN XML from database');
                 } else {
-                    console.warn('⚠️ Failed to fetch BPMN XML from database. Loading default diagram.');
+                    console.warn('⚠️ No valid BPMN XML found. Loading default diagram.');
                     const { default: newDiagramXML } = await import('../assets/newDiagram.bpmn');
                     bpmnXml = newDiagramXML;
+                    
+                    // 빈 다이어그램인 경우 디폴트로 업데이트
+                    if (result.data) {
+                        console.log('💾 Updating empty diagram with default BPMN XML...');
+                        await dbManager.updateDiagram(diagram.id, {
+                            bpmn_xml: newDiagramXML
+                        });
+                    }
                 }
             }
 
