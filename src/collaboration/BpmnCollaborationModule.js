@@ -183,6 +183,12 @@ export class BpmnCollaborationModule {
     try {
       this.syncState.isSyncing = true;
       
+      // 모델러가 준비되었는지 확인
+      if (!this.isModelerReady()) {
+        console.log('⏳ 모델러가 준비되지 않아 동기화를 건너뜁니다.');
+        return;
+      }
+      
       const currentXml = await this.getCurrentBpmnXml();
       const remoteXml = this.sharedDiagram.get('xml');
       
@@ -232,6 +238,12 @@ export class BpmnCollaborationModule {
         
         // 변경사항이 있는지 확인
         if (remoteXml !== currentXml) {
+          // 모델러가 완전히 준비될 때까지 대기
+          if (!this.isModelerReady()) {
+            console.log('⏳ 모델러가 준비될 때까지 동기화 대기 중...');
+            await this.waitForModelerReady();
+          }
+          
           // 로컬에 원격 변경사항 적용
           await this.modeler.importXML(remoteXml);
           
@@ -244,6 +256,39 @@ export class BpmnCollaborationModule {
       this.emit('syncError', { error, direction: 'fromRemote' });
     } finally {
       this.syncState.isSyncing = false;
+    }
+  }
+
+  /**
+   * 모델러가 준비되었는지 확인합니다.
+   */
+  isModelerReady() {
+    try {
+      if (!this.modeler) return false;
+      
+      const canvas = this.modeler.get('canvas');
+      if (!canvas) return false;
+      
+      // 레이어가 초기화되었는지 확인
+      const layers = canvas._layers;
+      return layers && Object.keys(layers).length > 0;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * 모델러가 준비될 때까지 대기합니다.
+   */
+  async waitForModelerReady(maxWaitTime = 5000) {
+    const startTime = Date.now();
+    
+    while (!this.isModelerReady() && (Date.now() - startTime) < maxWaitTime) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    if (!this.isModelerReady()) {
+      throw new Error('모델러가 준비되지 않았습니다 (타임아웃)');
     }
   }
 
