@@ -998,6 +998,13 @@ class VSCodeLayout {
             }
             
             console.log('🔧 Opening BPMN diagram:', diagram);
+            console.log('📋 Diagram details:', {
+                itemId: item.id,
+                itemLabel: item.label,
+                diagramId: diagram.id,
+                diagramName: diagram.name || diagram.title,
+                fullDiagram: diagram
+            });
 
             // BPMN XML 콘텐츠 가져오기
             let bpmnXml = diagram.bpmn_xml;
