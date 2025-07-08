@@ -153,5 +153,137 @@ class Explorer {
 
 ---
 
-*수정 완료일: 2025년 7월 8일*
-*관련 파일: Explorer.js, VSCodeLayout.js*
+## 🚨 해결된 오류 #2: Cannot read properties of null (reading 'importXML')
+
+### 오류 상황
+```
+TypeError: Cannot read properties of null (reading 'importXML')
+    at BpmnEditorCore.openDiagram (BpmnEditorCore.js:263:28)
+    at async BpmnEditor.openDiagram (BpmnEditor.js:148:7)
+    at async VSCodeLayout.openBPMNDiagram (VSCodeLayout.js:1097:13)
+```
+
+### 원인 분석
+1. **모델러 초기화 문제**: BpmnEditorCore의 `this.modeler`가 null 상태
+2. **초기화 실패**: `initializeModeler()` 메서드 실행 실패 또는 미실행
+3. **Canvas 요소 부재**: DOM 요소가 준비되지 않은 상태에서 초기화 시도
+
+### 수정 내용
+
+#### 1. openDiagram 메서드에 모델러 초기화 체크 및 재시도 추가
+```javascript
+// 수정 전
+async openDiagram(diagramData) {
+  try {
+    // 바로 this.modeler.importXML() 호출
+    await this.modeler.importXML(serverXml);
+  }
+}
+
+// 수정 후
+async openDiagram(diagramData) {
+  try {
+    // 모델러가 초기화되었는지 확인
+    if (!this.modeler) {
+      console.warn('⚠️  BPMN Modeler is not initialized, attempting to initialize...');
+      try {
+        this.initializeModeler();
+        if (!this.modeler) {
+          throw new Error('BPMN 모델러 초기화에 실패했습니다.');
+        }
+      } catch (initError) {
+        console.error('❌ Failed to initialize BPMN modeler:', initError);
+        throw new Error('BPMN 모델러가 초기화되지 않았습니다.');
+      }
+    }
+    
+    // 안전한 모델러 사용
+    if (shouldImport && this.modeler) {
+      await this.modeler.importXML(serverXml);
+    }
+  }
+}
+```
+
+#### 2. XML 비교 시 null 체크 추가
+```javascript
+// 수정 전
+const currentResult = await this.modeler.saveXML({ format: true });
+
+// 수정 후
+if (this.modeler) {
+  const currentResult = await this.modeler.saveXML({ format: true });
+  // ...
+}
+```
+
+### 기술적 세부사항
+
+#### 모델러 초기화 실패 시나리오
+1. **DOM 요소 부재**: Canvas 요소가 존재하지 않을 때
+2. **라이브러리 로딩 실패**: BpmnModeler 클래스 초기화 실패
+3. **초기화 타이밍**: 컨테이너 요소가 준비되기 전 초기화 시도
+
+#### 방어적 프로그래밍 적용
+1. **재시도 메커니즘**: 초기화 실패 시 재시도 로직
+2. **단계별 검증**: 각 단계에서 객체 존재 여부 확인
+3. **명확한 에러 메시지**: 디버깅을 위한 상세한 로그
+
+### 추가 방어 코드
+
+#### initializeModeler 메서드 강화
+```javascript
+initializeModeler(targetContainer = null) {
+  try {
+    // Canvas 요소 확인
+    if (!canvasElement || canvasElement.length === 0) {
+      throw new Error('Canvas element not found');
+    }
+
+    // 모델러 생성
+    this.modeler = new BpmnModeler({
+      container: canvasElement[0],
+      propertiesPanel: {
+        parent: this.propertiesPanel[0] || propertiesPanelSelector
+      },
+      additionalModules: [
+        BpmnPropertiesPanelModule,
+        BpmnPropertiesProviderModule
+      ]
+    });
+    
+    console.log('✅ BPMN Modeler initialized successfully');
+  } catch (error) {
+    console.error('❌ Failed to initialize BPMN modeler:', error);
+    this.modeler = null;  // 명시적으로 null 설정
+    throw error;
+  }
+}
+```
+
+### 향후 개선 사항
+1. **Promise 기반 초기화**: 모델러 초기화를 Promise로 래핑
+2. **상태 관리**: 초기화 상태를 명시적으로 추적
+3. **에러 복구**: 초기화 실패 시 자동 복구 메커니즘
+
+## 💡 추가 학습 포인트
+
+### 1. 모듈 초기화 패턴
+- 의존성 객체의 초기화 순서 고려
+- 초기화 실패 시 재시도 로직 구현
+- 초기화 상태 추적 및 관리
+
+### 2. 라이프사이클 관리
+- 컴포넌트 생명주기와 초기화 타이밍
+- DOM 요소 준비 상태 확인
+- 리소스 정리 및 재초기화
+
+### 3. 에러 처리 전략
+- 계층적 에러 처리 (모듈별 에러 처리)
+- 에러 복구 메커니즘
+- 사용자 친화적 에러 메시지
+
+---
+
+*최종 수정 완료일: 2025년 7월 8일*
+*관련 파일: Explorer.js, VSCodeLayout.js, BpmnEditorCore.js*

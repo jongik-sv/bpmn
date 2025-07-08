@@ -135,6 +135,17 @@ export class BpmnEditor extends EventEmitter {
    */
   async openDiagram(diagramData) {
     try {
+      // 초기화되지 않은 경우 먼저 초기화
+      if (!this.isInitialized) {
+        console.log('🔧 BpmnEditor not initialized, initializing now...');
+        await this.initializeWhenReady();
+        
+        // 초기화 후에도 여전히 초기화되지 않은 경우 에러
+        if (!this.isInitialized) {
+          throw new Error('BpmnEditor 초기화에 실패했습니다.');
+        }
+      }
+      
       await this.editorCore.openDiagram(diagramData);
       this.currentDiagram = this.editorCore.getCurrentDiagram();
       

@@ -204,6 +204,20 @@ export class BpmnEditorCore extends EventEmitter {
         throw new Error('다이어그램 ID가 없습니다.');
       }
       
+      // 모델러가 초기화되었는지 확인
+      if (!this.modeler) {
+        console.warn('⚠️  BPMN Modeler is not initialized, attempting to initialize...');
+        try {
+          this.initializeModeler();
+          if (!this.modeler) {
+            throw new Error('BPMN 모델러 초기화에 실패했습니다.');
+          }
+        } catch (initError) {
+          console.error('❌ Failed to initialize BPMN modeler:', initError);
+          throw new Error('BPMN 모델러가 초기화되지 않았습니다.');
+        }
+      }
+      
       // 서버에 문서 요청
       console.log(`🌐 API 요청: ${diagramId}`, new Date().toISOString());
       const response = await fetch(`http://localhost:1234/api/document/${diagramId}`);
@@ -236,21 +250,24 @@ export class BpmnEditorCore extends EventEmitter {
       let shouldImport = true;
       
       try {
-        // 현재 모델러의 XML을 가져와서 비교
-        const currentResult = await this.modeler.saveXML({ format: true });
-        const currentXml = currentResult.xml;
-        
-        // XML 내용이 같은지 확인 (공백 제거 후 비교)
-        const normalizeXml = (xml) => xml.replace(/\s+/g, ' ').trim();
-        if (normalizeXml(currentXml) === normalizeXml(serverXml)) {
-          shouldImport = false;
+        // 현재 모델러의 XML을 가져와서 비교 (모델러가 null이 아닌지 다시 확인)
+        if (this.modeler) {
+          const currentResult = await this.modeler.saveXML({ format: true });
+          const currentXml = currentResult.xml;
+          
+          // XML 내용이 같은지 확인 (공백 제거 후 비교)
+          const normalizeXml = (xml) => xml.replace(/\s+/g, ' ').trim();
+          if (normalizeXml(currentXml) === normalizeXml(serverXml)) {
+            shouldImport = false;
+          }
         }
       } catch (error) {
         // 현재 XML 비교 실패, 서버 XML 적용
+        console.warn('XML comparison failed:', error);
       }
       
-      // 다른 경우만 서버 XML 적용
-      if (shouldImport) {
+      // 다른 경우만 서버 XML 적용 (모델러가 null이 아닌지 확인)
+      if (shouldImport && this.modeler) {
         await this.modeler.importXML(serverXml);
       }
       
