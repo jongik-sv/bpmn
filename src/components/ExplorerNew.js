@@ -9,8 +9,8 @@ import { ExplorerSearch } from './explorer/ExplorerSearch.js';
 import { ExplorerActions } from './explorer/ExplorerActions.js';
 import { ExplorerAccessibility } from './explorer/ExplorerAccessibility.js';
 
-import TreeDataProvider from './TreeDataProvider.js';
-import ContextMenu from './ContextMenu.js';
+import { TreeDataProvider } from './tree-data/index.js';
+import { ContextMenu } from './context-menu/index.js';
 
 class Explorer {
   constructor(container) {

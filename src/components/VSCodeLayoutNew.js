@@ -9,7 +9,7 @@ import { VSCodeViewManager } from './vscode-layout/VSCodeViewManager.js';
 import { VSCodeBpmnIntegration } from './vscode-layout/VSCodeBpmnIntegration.js';
 
 import { ActivityBar } from './activity-bar/index.js';
-import Explorer from './Explorer.js';
+import Explorer from './ExplorerNew.js';
 import { AccessibilityManager } from './accessibility/index.js';
 import { DragDropController } from './drag-drop/index.js';
 import { EditorHeader } from './editor-header/index.js';
