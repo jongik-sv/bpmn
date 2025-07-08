@@ -4,7 +4,7 @@ import { showSupabaseLoginModalNew } from '../components/auth/SupabaseLoginModal
 import { dbManager, updateFolder } from '../lib/database.js';
 import { BpmnEditor } from '../editor/BpmnEditor.js';
 import { rbacManager, hasPermission, getUserRoleInProject } from '../lib/rbac.js';
-import VSCodeLayout from '../components/VSCodeLayout.js';
+import VSCodeLayout from '../components/VSCodeLayoutNew.js';
 import '../components/ProjectMembersModal.js';
 
 /**
