@@ -229,6 +229,13 @@ async function setupDocumentPersistence(roomId, ydoc, diagramId) {
     const displayName = getDocumentDisplayName(roomId)
     // console.log(`📝 문서 수정됨: ${displayName}`) // Disabled: too verbose
     
+    // Y.Doc 문서 내용 출력 (분석용)
+    console.log(`📝 Y.Doc 업데이트 - ${displayName}:`, {
+      xmlLength: currentXml ? currentXml.length : 0,
+      xmlPreview: currentXml ? currentXml.substring(0, 200) + '...' : 'null',
+      timestamp: new Date().toISOString()
+    });
+    
     // 30초 디바운스 저장
     debouncedSave()
     
@@ -318,13 +325,22 @@ const server = http.createServer(async (request, response) => {
       }
       
       response.writeHead(200, { 'Content-Type': 'application/json' })
-      response.end(JSON.stringify({
+      const responseData = {
         success: true,
         diagramId: diagramId,
         name: metadata?.name || '새 문서',
         xml: finalXml,
         roomId: roomId
-      }))
+      };
+      
+      // API 응답 문서 내용 출력 (분석용)
+      console.log(`📤 API 응답 - ${metadata?.name || '새 문서'}:`, {
+        xmlLength: finalXml ? finalXml.length : 0,
+        xmlPreview: finalXml, // ? finalXml.substring(0, 200) + '...' : 'null',
+        timestamp: new Date().toISOString()
+      });
+      
+      response.end(JSON.stringify(responseData))
       
       // console.log(`📤 문서 전송 완료: ${metadata?.name || '새 문서'}`) // Disabled: too verbose
       
@@ -411,12 +427,12 @@ wss.on('connection', async (conn, req) => {
     documentInfo = await setupDocumentPersistence(roomId, ydoc, diagramId)
     // DB에서 로드된 실제 문서명 표시
     const displayName = getDocumentDisplayName(roomId)
-    console.log(`👤 사용자가 문서에 접속: ${displayName}`)
+    // console.log(`👤 사용자가 문서에 접속: ${displayName}`) // Disabled: too verbose
     console.log(`🏠 룸 생성: 룸ID=${roomId}, 문서명=${displayName}`)
   } else {
     // 기존 룸 - 실제 문서명 출력
     const displayName = getDocumentDisplayName(roomId)
-    console.log(`👤 사용자가 문서에 입장: ${displayName}`)
+    // console.log(`👤 사용자가 문서에 입장: ${displayName}`) // Disabled: too verbose
   }
   
   // 연결 수 증가
@@ -435,7 +451,7 @@ wss.on('connection', async (conn, req) => {
     // 짧은 지연 후 동기화 (클라이언트 연결 완료 대기)
     setTimeout(() => {
       const displayName = getDocumentDisplayName(roomId)
-      console.log(`📤 문서 내용 즉시 동기화: ${displayName}`)
+      // console.log(`📤 문서 내용 즉시 동기화: ${displayName}`) // Disabled: too verbose
     }, 100)
   }
   
@@ -451,7 +467,7 @@ wss.on('connection', async (conn, req) => {
       
       // 마지막 사용자가 나가면 즉시 저장하고 룸 정리
       if (metadata.connections <= 0) {
-        console.log(`🧹 마지막 사용자 나감, 문서 저장 및 정리: ${displayName}`)
+        console.log(`💾 DB 저장: 마지막 사용자 나감 - ${displayName}`)
         
         const ydoc = documents.get(roomId)
         if (ydoc) {

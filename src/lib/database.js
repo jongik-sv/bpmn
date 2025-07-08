@@ -891,7 +891,6 @@ export class DatabaseManager {
           .eq('project_id', projectId)
           .order('sort_order', { ascending: true });
         
-        console.log('📁 Folders from DB (sorted by sort_order):', data?.map(f => ({ name: f.name, sort_order: f.sort_order, parent_id: f.parent_id })));
 
         if (error) {
           console.error('Get project folders error, using local fallback:', error);

@@ -9,7 +9,14 @@
       "mcp__exa__*",
       "mcp__fetch-mcp__*",
       "mcp__sequential-thinking__*",
-      "Bash"
+      "Bash",
+      "mcp__supabase__get_project_url",
+      "mcp__supabase__get_anon_key",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__execute_sql",
+      "mcp__Context7__resolve-library-id",
+      "mcp__Context7__get-library-docs",
+      "mcp__sequential-thinking__sequentialthinking"
     ]
   },
   "enableAllProjectMcpServers": true,

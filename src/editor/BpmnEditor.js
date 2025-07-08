@@ -56,7 +56,7 @@ export class BpmnEditor {
       this.setupEventListeners();
       this.setupFileDrop();
       this.isInitialized = true;
-      console.log('BpmnEditor initialized');
+      // console.log('BpmnEditor initialized'); // Disabled: non-critical
     } catch (error) {
       console.error('❌ BpmnEditor initialization failed:', error);
     }
@@ -93,7 +93,7 @@ export class BpmnEditor {
       this.container.append(this.propertiesPanel);
     }
     
-    console.log('✅ Container setup complete');
+    // console.log('✅ Container setup complete'); // Disabled: non-critical
   }
   
   /**
@@ -175,18 +175,18 @@ export class BpmnEditor {
     if (this.collaborationModule && project && this.currentDiagram) {
       const roomId = this.currentDiagram.id || this.currentDiagram.diagramId;
       
-      console.log('🔄 Room ID generation in setCurrentProject:', {
-        projectId: project.id,
-        currentDiagramId: this.currentDiagram?.id || this.currentDiagram?.diagramId,
-        generatedRoomId: roomId,
-        hasCollaborationModule: !!this.collaborationModule,
-        hasCurrentDiagram: !!this.currentDiagram
-      });
+      // console.log('🔄 Room ID generation in setCurrentProject:', { // Disabled: too verbose
+      //   projectId: project.id,
+      //   currentDiagramId: this.currentDiagram.id || this.currentDiagram.diagramId,
+      //   generatedRoomId: roomId,
+      //   hasCollaborationModule: !!this.collaborationModule,
+      //   hasCurrentDiagram: !!this.currentDiagram
+      // });
       try {
         // 현재 사용자 정보와 함께 룸 변경
         const userInfo = this.currentUser ? {
           id: this.currentUser.id,
-          name: this.currentUser.user_metadata?.display_name || this.currentUser.email,
+          name: (this.currentUser.user_metadata && this.currentUser.user_metadata.display_name) || this.currentUser.email,
           email: this.currentUser.email
         } : null;
         
@@ -208,23 +208,23 @@ export class BpmnEditor {
     
     if (this.collaborationModule) {
       try {
-        console.log('🔄 Starting collaboration room change to:', roomId);
-      console.log('📋 Room details:', { 
-        projectId: project.id, 
-        diagramId: this.currentDiagram?.id || this.currentDiagram?.diagramId,
-        roomId: roomId
-      });
+        // console.log('🔄 Starting collaboration room change to:', roomId); // Disabled: too verbose
+      // console.log('📋 Room details:', { // Disabled: too verbose 
+      //   projectId: project.id, 
+      //   diagramId: (this.currentDiagram && this.currentDiagram.id) || (this.currentDiagram && this.currentDiagram.diagramId),
+      //   roomId: roomId
+      // });
         
         const userInfo = this.currentUser ? {
           id: this.currentUser.id,
-          name: this.currentUser.user_metadata?.display_name || this.currentUser.email,
+          name: (this.currentUser.user_metadata && this.currentUser.user_metadata.display_name) || this.currentUser.email,
           email: this.currentUser.email
         } : null;
         
-        console.log('👤 User info for room change:', userInfo);
+        // console.log('👤 User info for room change:', userInfo); // Disabled: too verbose
         
         await this.collaborationModule.changeRoom(roomId, userInfo);
-        console.log('✅ Collaboration room changed successfully to:', roomId);
+        // console.log('✅ Collaboration room changed successfully to:', roomId); // Disabled: too verbose
         
         // 성공 알림
         if (window.appManager) {
@@ -249,9 +249,9 @@ export class BpmnEditor {
       
       // 협업 모듈 재초기화 시도
       try {
-        console.log('🔄 Attempting to reinitialize collaboration module...');
+        // console.log('🔄 Attempting to reinitialize collaboration module...'); // Disabled: non-critical
         await this.initializeCollaboration(roomId);
-        console.log('✅ Collaboration module reinitialized successfully');
+        // console.log('✅ Collaboration module reinitialized successfully'); // Disabled: non-critical
         
         if (window.appManager) {
           window.appManager.showNotification('협업 모듈이 재초기화되었습니다.', 'info');
@@ -271,19 +271,19 @@ export class BpmnEditor {
   async openDiagram(diagramData) {
     try {
       // console.log('📂 openDiagram called with:', {
-      //   diagramId: diagramData?.id || diagramData?.diagramId,
-      //   diagramName: diagramData?.name || diagramData?.title,
-      //   previousDiagram: this.currentDiagram?.id,
+      //   diagramId: (diagramData && diagramData.id) || (diagramData && diagramData.diagramId),
+      //   diagramName: (diagramData && diagramData.name) || (diagramData && diagramData.title),
+      //   previousDiagram: this.currentDiagram && this.currentDiagram.id,
       //   fullData: diagramData
       // }); // Disabled: too verbose
       
-      const diagramId = diagramData?.id || diagramData?.diagramId;
+      const diagramId = (diagramData && diagramData.id) || (diagramData && diagramData.diagramId);
       if (!diagramId) {
         throw new Error('다이어그램 ID가 없습니다.');
       }
       
       // 서버에 문서 요청
-      // console.log(`📡 서버에 문서 요청: ${diagramId}`); // Disabled: too verbose
+      console.log(`🌐 API 요청: ${diagramId}`, new Date().toISOString());
       const response = await fetch(`http://localhost:1234/api/document/${diagramId}`);
       
       if (!response.ok) {
@@ -296,7 +296,11 @@ export class BpmnEditor {
         throw new Error(documentData.error || '문서 로드 실패');
       }
       
-      // console.log(`📤 서버에서 문서 수신:`, documentData); // Disabled: too verbose
+      console.log(`📥 API 응답:`, {
+        xmlLength: documentData.xml ? documentData.xml.length : 0,
+        xmlPreview: documentData.xml ? documentData.xml.substring(0, 200) + '...' : 'null',
+        timestamp: new Date().toISOString()
+      });
       
       // 로컬과 같으면 적용할 필요없음, 다를 경우만 적용
       this.currentDiagram = {
@@ -306,8 +310,8 @@ export class BpmnEditor {
       };
       
       // console.log('✅ currentDiagram updated:', {
-      //   newDiagramId: this.currentDiagram?.id || this.currentDiagram?.diagramId,
-      //   newDiagramName: this.currentDiagram?.name || this.currentDiagram?.title
+      //   newDiagramId: (this.currentDiagram && this.currentDiagram.id) || (this.currentDiagram && this.currentDiagram.diagramId),
+      //   newDiagramName: (this.currentDiagram && this.currentDiagram.name) || (this.currentDiagram && this.currentDiagram.title)
       // }); // Disabled: too verbose
       
       // 서버에서 받은 XML과 현재 로컬 XML 비교
@@ -328,7 +332,7 @@ export class BpmnEditor {
           // console.log('🔄 로컬과 서버 XML이 다름, 서버 XML 적용'); // Disabled: too verbose
         }
       } catch (error) {
-        console.log('⚠️ 현재 XML 비교 실패, 서버 XML 적용:', error.message);
+        // console.log('⚠️ 현재 XML 비교 실패, 서버 XML 적용:', error.message); // Disabled: non-critical
       }
       
       // 다른 경우만 서버 XML 적용
@@ -340,23 +344,23 @@ export class BpmnEditor {
       if (this.currentProject && this.collaborationModule) {
         const roomId = this.currentDiagram.id || this.currentDiagram.diagramId;
         
-        console.log('🔄 Updating collaboration room after diagram load:', {
-          projectId: this.currentProject.id,
-          diagramId: this.currentDiagram.id || this.currentDiagram.diagramId,
-          roomId: roomId
-        });
+        // console.log('🔄 Updating collaboration room after diagram load:', { // Disabled: too verbose
+        //   projectId: this.currentProject.id,
+        //   diagramId: this.currentDiagram.id || this.currentDiagram.diagramId,
+        //   roomId: roomId
+        // });
         
         try {
           const userInfo = this.currentUser ? {
             id: this.currentUser.id,
-            name: this.currentUser.user_metadata?.display_name || this.currentUser.email,
+            name: (this.currentUser.user_metadata && this.currentUser.user_metadata.display_name) || this.currentUser.email,
             email: this.currentUser.email
           } : null;
           
           // Diagram ID를 collaboration manager에 전달하여 서버 측 저장 활성화
           const diagramId = this.currentDiagram.id || this.currentDiagram.diagramId;
           await this.collaborationModule.changeRoom(roomId, userInfo, diagramId);
-          console.log('✅ Collaboration room updated successfully after diagram load');
+          // console.log('✅ Collaboration room updated successfully after diagram load'); // Disabled: too verbose
         } catch (error) {
           console.error('❌ Failed to update collaboration room after diagram load:', error);
         }
@@ -381,12 +385,12 @@ export class BpmnEditor {
       this.updateBreadcrumb();
       
       // 헤더 표시 및 협업 정보 업데이트
-      console.log('🎯 Calling showEditorHeader from openDiagram');
+      // console.log('🎯 Calling showEditorHeader from openDiagram'); // Disabled: too verbose
       this.showEditorHeader();
-      console.log('🎯 Calling updateCollaborationInfo from openDiagram');
+      // console.log('🎯 Calling updateCollaborationInfo from openDiagram'); // Disabled: too verbose
       this.updateCollaborationInfo();
       
-      console.log('Diagram loaded successfully:', diagramData.name);
+      // console.log('Diagram loaded successfully:', diagramData.name); // Disabled: non-critical
       
     } catch (err) {
       this.container
@@ -428,7 +432,7 @@ export class BpmnEditor {
       if (window.dbManager && this.currentDiagram.id !== 'new') {
         const result = await window.dbManager.updateDiagram(this.currentDiagram.id, {
           bpmn_xml: xml,
-          last_modified_by: this.currentUser?.id
+          last_modified_by: this.currentUser && this.currentUser.id
         });
         
         if (result.error) {
@@ -512,7 +516,7 @@ export class BpmnEditor {
       if (window.dbManager) {
         const updateData = {
           bpmn_xml: xml,
-          last_modified_by: this.currentUser?.id
+          last_modified_by: this.currentUser && this.currentUser.id
         };
         
         const result = await window.dbManager.updateDiagram(diagramId, updateData);
@@ -658,7 +662,7 @@ export class BpmnEditor {
         } else {
           console.log('🔍 Collaboration sync skipped:', {
             hasModule: !!this.collaborationModule,
-            isConnected: this.collaborationModule?.isConnectedToServer()
+            isConnected: this.collaborationModule && this.collaborationModule.isConnectedToServer()
           });
         }
       });
@@ -717,7 +721,7 @@ export class BpmnEditor {
       
       console.log(`🏠 Initializing collaboration: room=${roomId}, diagram=${diagramId}`);
       console.log('📋 Collaboration details:', { 
-        projectId: this.currentProject?.id, 
+        projectId: this.currentProject && this.currentProject.id, 
         diagramId: diagramId,
         roomId: roomId,
         currentDiagram: this.currentDiagram
@@ -729,7 +733,7 @@ export class BpmnEditor {
         'ws://localhost:1234',
         {
           id: user.id,
-          name: user.user_metadata?.display_name || user.email,
+          name: (user.user_metadata && user.user_metadata.display_name) || user.email,
           email: user.email
         },
         diagramId
@@ -903,7 +907,7 @@ export class BpmnEditor {
   showEditorHeader() {
     console.log('🎯 showEditorHeader called', {
       hasVscodeLayout: !!window.vscodeLayout,
-      hasShowMethod: !!(window.vscodeLayout?.showEditorHeader)
+      hasShowMethod: !!(window.vscodeLayout && window.vscodeLayout.showEditorHeader)
     });
     
     if (window.vscodeLayout) {

@@ -195,10 +195,7 @@ export class TreeDataProvider {
     }
 
     refresh(element = null) {
-        console.log('🔄 TreeDataProvider refresh called, element:', element?.label || 'null');
-        console.log('🔄 onDidChangeTreeData callback exists:', !!this.onDidChangeTreeData);
         if (this.onDidChangeTreeData) {
-            console.log('🔄 Calling onDidChangeTreeData callback...');
             this.onDidChangeTreeData(element);
         } else {
             console.log('❌ No onDidChangeTreeData callback set!');
@@ -354,9 +351,7 @@ export class TreeDataProvider {
 
     // Event handling
     setOnDidChangeTreeData(callback) {
-        console.log('📞 Setting onDidChangeTreeData callback:', !!callback);
         this.onDidChangeTreeData = callback;
-        console.log('📞 Callback set, onDidChangeTreeData exists:', !!this.onDidChangeTreeData);
     }
 
     setDragDropController(controller) {

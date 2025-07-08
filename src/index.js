@@ -5,14 +5,14 @@ import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
 import '@bpmn-io/properties-panel/assets/properties-panel.css';
 import './styles/login.css';
 import './styles/app.css';
+import './styles/editor-header.css';
+import './styles/main.css';
 
 import $ from 'jquery';
 import { getAppManager } from './app/AppManager.js';
 
 // Initialize the new application
 $(document).ready(() => {
-  console.log('Initializing BPMN Collaborative Editor...');
-  
   const appManager = getAppManager();
   
   // 전역 참조 설정 (기존 코드 호환성을 위해)
@@ -20,6 +20,4 @@ $(document).ready(() => {
   window.bpmnEditor = {
     showNotification: (message, type) => appManager.showNotification(message, type)
   };
-  
-  console.log('BPMN Collaborative Editor initialized with new UI flow');
 });

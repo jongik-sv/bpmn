@@ -1,6 +1,9 @@
 /* Import VS Code UI styles */
 @import './vscode-ui.css';
 
+/* Import Editor Header styles */
+@import './editor-header.css';
+
 /* Context Menu Styles */
 .context-menu {
   position: fixed;

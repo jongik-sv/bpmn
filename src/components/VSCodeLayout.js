@@ -7,6 +7,7 @@ import ActivityBar from './ActivityBar.js';
 import Explorer from './Explorer.js';
 import AccessibilityManager from './AccessibilityManager.js';
 import DragDropController from './DragDropController.js';
+import EditorHeader from './EditorHeader.js';
 
 class VSCodeLayout {
     constructor(container) {
@@ -19,6 +20,7 @@ class VSCodeLayout {
         this.explorer = null;
         this.accessibilityManager = null;
         this.dragDropController = null;
+        this.editorHeader = null;
         
         // Layout state
         this.sidebarWidth = 240;
@@ -30,24 +32,11 @@ class VSCodeLayout {
 
     init() {
         try {
-            console.log('🔧 VSCodeLayout init starting...');
-            
-            console.log('1️⃣ Creating layout...');
             this.createLayout();
-            
-            console.log('2️⃣ Initializing components...');
             this.initializeComponents();
-            
-            console.log('3️⃣ Setting up event listeners...');
             this.setupEventListeners();
-            
-            console.log('4️⃣ Setting up accessibility...');
             this.setupAccessibility();
-            
-            console.log('5️⃣ Loading layout state...');
             this.loadLayoutState();
-            
-            console.log('✅ VSCodeLayout init completed successfully');
         } catch (error) {
             console.error('❌ VSCodeLayout init failed:', error);
             throw error;
@@ -89,6 +78,8 @@ class VSCodeLayout {
                     <div class="sidebar-resize-handle" style="width: 4px; background-color: transparent; cursor: col-resize; position: absolute; right: 0; top: 0; bottom: 0; z-index: 10;"></div>
                 </div>
                 <div class="editor-container" style="flex: 1; display: flex; flex-direction: column; background-color: #1e1e1e; overflow: hidden; min-height: 0;">
+                    <!-- Editor Header will be inserted here -->
+                    <div class="editor-header-container" style="display: none;"></div>
                     <div class="editor-content" style="flex: 1; position: relative; min-height: 0; display: flex; overflow: hidden;">
                         <div class="editor-welcome-message" style="flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; color: #cccccc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif; background-color: #1e1e1e;">
                             <div style="text-align: center; max-width: 400px;">
@@ -118,50 +109,37 @@ class VSCodeLayout {
 
     initializeComponents() {
         try {
-            console.log('🔧 Initializing VS Code components...');
             
             // Initialize Activity Bar
-            console.log('📍 Finding activity bar container...');
             const activityBarContainer = this.container.querySelector('.activity-bar-container');
-            console.log('📍 Activity bar container:', activityBarContainer);
             
             if (!activityBarContainer) {
                 throw new Error('Activity bar container not found');
             }
             
-            console.log('📍 Creating Activity Bar...');
             this.activityBar = new ActivityBar(activityBarContainer);
-            console.log('✅ Activity Bar created');
             
             // Initialize Explorer
-            console.log('📍 Finding explorer container...');
             const explorerContainer = this.container.querySelector('.explorer-container');
-            console.log('📍 Explorer container:', explorerContainer);
             
             if (!explorerContainer) {
                 throw new Error('Explorer container not found');
             }
             
-            console.log('📍 Creating Explorer...');
             this.explorer = new Explorer(explorerContainer);
-            console.log('✅ Explorer created');
+            
+            // Initialize Editor Header
+            this.editorHeader = new EditorHeader();
             
             // Initialize Accessibility Manager
-            console.log('📍 Creating Accessibility Manager...');
             this.accessibilityManager = new AccessibilityManager();
-            console.log('✅ Accessibility Manager created');
             
             // Initialize Drag Drop Controller
-            console.log('📍 Creating Drag Drop Controller...');
             this.dragDropController = new DragDropController();
-            console.log('✅ Drag Drop Controller created');
             
             // Set up component interactions
-            console.log('📍 Setting up component callbacks...');
             this.setupComponentCallbacks();
-            console.log('✅ Component callbacks set up');
             
-            console.log('✅ All VS Code components initialized successfully');
         } catch (error) {
             console.error('❌ Failed to initialize VS Code components:', error);
             throw error;
@@ -177,11 +155,9 @@ class VSCodeLayout {
 
         // Explorer callbacks
         this.explorer.setOnItemClick((item, event) => {
-            console.log('Explorer item clicked:', item.label);
             
             // 다이어그램인 경우 단일 클릭으로도 열기
             if (item.type === 'file' && (item.type === 'diagram' || item.diagramId)) {
-                console.log('🎯 Opening BPMN diagram via single click:', item.diagramId || item.label);
                 this.openBPMNDiagram(item);
             }
             
@@ -192,7 +168,6 @@ class VSCodeLayout {
             if (item.type === 'file' || item.type === 'diagram') {
                 // BPMN 다이어그램인 경우 직접 처리
                 if (item.type === 'diagram' || item.diagramId) {
-                    console.log('🎯 Opening BPMN diagram:', item.diagramId || item.label);
                     this.openBPMNDiagram(item);
                 } else {
                     this.openFile(item);
@@ -218,6 +193,18 @@ class VSCodeLayout {
         this.dragDropController.setOnDidChangeTreeData((element) => {
             this.explorer.refreshTree(element);
         });
+
+        // Editor Header callbacks
+        if (this.editorHeader) {
+            this.editorHeader.setEventHandlers({
+                onDashboardClick: () => {
+                    this.goToDashboard();
+                },
+                onBreadcrumbClick: (id) => {
+                    this.handleBreadcrumbNavigation(id);
+                }
+            });
+        }
     }
 
     setupEventListeners() {
@@ -794,17 +781,71 @@ class VSCodeLayout {
             padding: 40px;
         `;
         readyContainer.innerHTML = `
-            <div style="margin-bottom: 20px;">
-                <i style="font-size: 48px;">🎨</i>
+            <div style="margin-bottom: 30px;">
+                <i style="font-size: 64px;">📄</i>
             </div>
-            <div style="font-weight: 500; margin-bottom: 16px; font-size: 18px;">
-                BPMN 에디터 준비 완료
+            <div style="font-weight: 600; margin-bottom: 8px; font-size: 20px; color: #ffffff;">
+                BPMN 다이어그램을 선택하세요
             </div>
-            <div style="color: #999999; line-height: 1.5; max-width: 400px;">
-                Explorer에서 BPMN 다이어그램을 더블클릭하거나<br>
-                새 다이어그램을 생성하여 편집을 시작하세요.
+            <div style="color: #999999; line-height: 1.6; margin-bottom: 30px; max-width: 500px;">
+                왼쪽 탐색기에서 BPMN 다이어그램을 클릭하여 편집을 시작하세요.
+            </div>
+            <div style="display: flex; gap: 20px; margin-top: 20px;">
+                <button id="create-folder-btn" style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    padding: 20px;
+                    background: #2d2d30;
+                    border: 1px solid #464647;
+                    border-radius: 8px;
+                    color: #cccccc;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    text-decoration: none;
+                    font-size: 12px;
+                " onmouseover="this.style.background='#383838'" onmouseout="this.style.background='#2d2d30'">
+                    <div style="font-size: 24px; margin-bottom: 8px;">📁</div>
+                    <div>새 폴더 만들기</div>
+                </button>
+                <button id="create-diagram-btn" style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    padding: 20px;
+                    background: #2d2d30;
+                    border: 1px solid #464647;
+                    border-radius: 8px;
+                    color: #cccccc;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    text-decoration: none;
+                    font-size: 12px;
+                " onmouseover="this.style.background='#383838'" onmouseout="this.style.background='#2d2d30'">
+                    <div style="font-size: 24px; margin-bottom: 8px;">📄</div>
+                    <div>새 다이어그램 만들기</div>
+                </button>
             </div>
         `;
+        
+        // 이벤트 리스너 설정
+        setTimeout(() => {
+            const createFolderBtn = container.querySelector('#create-folder-btn');
+            const createDiagramBtn = container.querySelector('#create-diagram-btn');
+            
+            if (createFolderBtn) {
+                createFolderBtn.addEventListener('click', () => {
+                    this.createNewFolder();
+                });
+            }
+            
+            if (createDiagramBtn) {
+                createDiagramBtn.addEventListener('click', () => {
+                    this.createNewDiagram();
+                });
+            }
+        }, 100);
+        
         container.appendChild(readyContainer);
     }
 
@@ -834,9 +875,6 @@ class VSCodeLayout {
         }
         
         const { currentProject } = appManager;
-        console.log('📁 Loading project:', currentProject.name);
-        console.log('📊 Folders:', currentProject.folders?.length || 0);
-        console.log('📄 Diagrams:', currentProject.diagrams?.length || 0);
         
         // 실제 프로젝트 데이터로 트리 구조 생성
         const { FileTreeItem, TreeItemCollapsibleState } = await import('./TreeDataProvider.js');
@@ -861,12 +899,6 @@ class VSCodeLayout {
         const allRootItems = [...rootFolders, ...rootDiagrams]
             .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
         
-        console.log('📁 Root items sorted by sort_order:', 
-            allRootItems.map(item => ({ 
-                name: item.name, 
-                type: item.itemType, 
-                sort_order: item.sort_order 
-            })));
         
         // 정렬된 순서대로 루트에 추가
         for (const item of allRootItems) {
@@ -914,14 +946,7 @@ class VSCodeLayout {
         // 폴더와 다이어그램을 합쳐서 sort_order로 정렬
         const allChildren = [...childFolders, ...folderDiagrams]
             .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-        
-        console.log(`📁 Folder "${folder.name}" children sorted by sort_order:`, 
-            allChildren.map(item => ({ 
-                name: item.name, 
-                type: item.itemType, 
-                sort_order: item.sort_order 
-            })));
-        
+               
         // 정렬된 순서대로 트리에 추가
         for (const child of allChildren) {
             if (child.itemType === 'folder') {
@@ -1006,31 +1031,42 @@ class VSCodeLayout {
                 fullDiagram: diagram
             });
 
-            // BPMN XML 콘텐츠 가져오기
-            let bpmnXml = diagram.bpmn_xml;
-            if (!bpmnXml || bpmnXml.trim() === '') {
-                console.log('📜 BPMN XML not found locally, fetching from database...');
-                const { dbManager } = await import('../lib/database.js');
-                const result = await dbManager.getDiagram(diagram.id);
+            // 서버에서 문서 요청 (DB 직접 접근 제거)
+            console.log('📡 서버에 문서 요청:', diagram.id);
+            
+            let bpmnXml = null;
+            /*
+            try {
+                const response = await fetch(`http://localhost:1234/api/document/${diagram.id}`);
                 
-                if (result.data && result.data.bpmn_xml && result.data.bpmn_xml.trim() !== '') {
-                    bpmnXml = result.data.bpmn_xml;
-                    diagram.bpmn_xml = bpmnXml; // 나중을 위해 캐시
-                    console.log('✅ Fetched and cached BPMN XML from database');
-                } else {
-                    console.warn('⚠️ No valid BPMN XML found. Loading default diagram.');
-                    const { default: newDiagramXML } = await import('../assets/newDiagram.bpmn');
-                    bpmnXml = newDiagramXML;
-                    
-                    // 빈 다이어그램인 경우 디폴트로 업데이트
-                    if (result.data) {
-                        console.log('💾 Updating empty diagram with default BPMN XML...');
-                        await dbManager.updateDiagram(diagram.id, {
-                            bpmn_xml: newDiagramXML
-                        });
-                    }
+                if (!response.ok) {
+                    throw new Error(`서버 오류: ${response.status} ${response.statusText}`);
                 }
+                
+                const documentData = await response.json();
+                
+                if (!documentData.success) {
+                    throw new Error(documentData.error || '문서 로드 실패');
+                }
+                
+                bpmnXml = documentData.xml;
+                console.log('✅ 서버에서 문서 수신:', documentData.name);
+                
+                // 서버에서 받은 최신 데이터로 다이어그램 정보 업데이트
+                diagram.bpmn_xml = bpmnXml;
+                diagram.name = documentData.name;
+                
+            } catch (error) {
+                console.error('❌ 서버에서 문서 로드 실패:', error);
+                
+                // 서버 연결 실패 시 오류 메시지 표시
+                if (appManager) {
+                    appManager.showNotification('서버에 연결할 수 없습니다. WebSocket 서버가 실행 중인지 확인해주세요.', 'error');
+                }
+                return; // 서버 연결 실패 시 문서 열기 중단
             }
+            */
+
 
             // BPMN 에디터가 초기화되지 않았다면 초기화
             if (!appManager.bpmnEditor || !appManager.bpmnEditor.isInitialized) {
@@ -1081,8 +1117,147 @@ class VSCodeLayout {
             this.dragDropController.dispose();
         }
         
+        if (this.editorHeader) {
+            this.editorHeader.destroy();
+        }
+        
         // Save final state
         this.saveLayoutState();
+    }
+
+    /**
+     * 에디터 헤더 표시/숨김
+     */
+    showEditorHeader() {
+        console.log('📋 VSCodeLayout.showEditorHeader called');
+        
+        const headerContainer = this.container.querySelector('.editor-header-container');
+        console.log('📋 Header container found:', !!headerContainer);
+        console.log('📋 Editor header instance:', !!this.editorHeader);
+        
+        if (headerContainer && this.editorHeader) {
+            headerContainer.style.display = 'block';
+            headerContainer.innerHTML = '';
+            headerContainer.appendChild(this.editorHeader.getContainer());
+            console.log('✅ Editor header displayed');
+        } else {
+            console.warn('❌ Cannot show editor header:', {
+                hasContainer: !!headerContainer,
+                hasEditorHeader: !!this.editorHeader
+            });
+        }
+    }
+
+    hideEditorHeader() {
+        const headerContainer = this.container.querySelector('.editor-header-container');
+        if (headerContainer) {
+            headerContainer.style.display = 'none';
+        }
+    }
+
+    /**
+     * 브레드크럼 업데이트
+     */
+    updateBreadcrumb(breadcrumbData) {
+        if (this.editorHeader) {
+            this.editorHeader.updateBreadcrumb(breadcrumbData);
+        }
+    }
+
+    /**
+     * 접속자 정보 업데이트
+     */
+    updateConnectedUsers(users) {
+        if (this.editorHeader) {
+            this.editorHeader.updateConnectedUsers(users);
+        }
+    }
+
+    /**
+     * 대시보드로 이동
+     */
+    goToDashboard() {
+        // AppManager를 통해 대시보드로 이동
+        if (window.appManager) {
+            window.appManager.showDashboard();
+        }
+    }
+
+    /**
+     * 브레드크럼 네비게이션 처리
+     */
+    handleBreadcrumbNavigation(id) {
+        if (id === 'home') {
+            this.goToDashboard();
+        } else {
+            // 특정 프로젝트나 폴더로 이동
+            console.log('Navigate to:', id);
+            // TODO: 구체적인 네비게이션 로직 구현
+        }
+    }
+
+    /**
+     * 새 폴더 만들기
+     */
+    async createNewFolder() {
+        try {
+            const appManager = window.appManager;
+            if (!appManager || !appManager.currentProject) {
+                console.error('❌ AppManager 또는 현재 프로젝트를 찾을 수 없습니다.');
+                return;
+            }
+
+            // 폴더 이름 입력받기
+            const folderName = prompt('새 폴더 이름을 입력하세요:', '새 폴더');
+            if (!folderName || folderName.trim() === '') {
+                return;
+            }
+
+            console.log('📁 새 폴더 생성:', folderName);
+            
+            // 폴더 생성 로직 (AppManager를 통해)
+            if (appManager.createFolder) {
+                await appManager.createFolder(folderName.trim());
+            } else {
+                console.warn('⚠️ createFolder 메서드가 AppManager에 없습니다.');
+            }
+            
+        } catch (error) {
+            console.error('❌ 폴더 생성 실패:', error);
+            alert('폴더 생성에 실패했습니다.');
+        }
+    }
+
+    /**
+     * 새 다이어그램 만들기
+     */
+    async createNewDiagram() {
+        try {
+            const appManager = window.appManager;
+            if (!appManager || !appManager.currentProject) {
+                console.error('❌ AppManager 또는 현재 프로젝트를 찾을 수 없습니다.');
+                return;
+            }
+
+            // 다이어그램 이름 입력받기
+            const diagramName = prompt('새 다이어그램 이름을 입력하세요:', '새 다이어그램');
+            if (!diagramName || diagramName.trim() === '') {
+                return;
+            }
+
+            console.log('📄 새 다이어그램 생성:', diagramName);
+            
+            // 다이어그램 생성 로직 (AppManager를 통해)
+            if (appManager.createDiagram) {
+                await appManager.createDiagram(diagramName.trim());
+            } else {
+                console.warn('⚠️ createDiagram 메서드가 AppManager에 없습니다.');
+            }
+            
+        } catch (error) {
+            console.error('❌ 다이어그램 생성 실패:', error);
+            alert('다이어그램 생성에 실패했습니다.');
+        }
     }
 }
 

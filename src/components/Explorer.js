@@ -28,30 +28,19 @@ class Explorer {
     }
 
     init() {
-        console.log('🔧 Explorer initializing...');
         
         // First render the basic structure
-        console.log('📍 Rendering initial structure...');
         this.render();
         
         // Then setup data provider
-        console.log('📍 Setting up data provider...');
         this.setupDataProvider();
         
-        // Create sample data
-        console.log('📁 Creating sample data...');
-        this.dataProvider.createSampleData();
-        console.log('📁 Sample data created, root:', this.dataProvider.root);
-        
         // Now refresh the tree (which should work since .tree-view exists)
-        console.log('📍 Refreshing tree view...');
         this.refreshTree();
         
         this.attachEventListeners();
         this.setupAccessibility();
         this.setupContextMenu();
-        
-        console.log('✅ Explorer initialized');
     }
     
     getProjectName() {
@@ -68,12 +57,9 @@ class Explorer {
     }
 
     setupDataProvider() {
-        console.log('📍 Setting up data provider callback...');
         this.dataProvider.setOnDidChangeTreeData((element) => {
-            console.log('📞 Data provider callback called with element:', element?.label || 'null');
             this.refreshTree(element);
         });
-        console.log('✅ Data provider callback set');
     }
 
     render() {
@@ -129,15 +115,11 @@ class Explorer {
     }
 
     renderTree() {
-        console.log('🌲 Rendering tree with real data...');
         const root = this.dataProvider.root;
         
         if (!root) {
-            console.log('❌ No root node found');
             return '<div style="padding: 16px; color: #999999;">데이터를 로드하는 중...</div>';
         }
-        
-        console.log('🌲 Root children:', root.children?.length || 0, root.children);
         
         // Start with root's children, sorted properly
         const visibleNodes = [];
@@ -148,7 +130,6 @@ class Explorer {
                 const bOrder = b.sort_order || 0;
                 return aOrder - bOrder;
             });
-            console.log('🔢 Sorted children by sort_order:', sortedChildren.map(c => `${c.label}(${c.sort_order})`));
             
             for (const child of sortedChildren) {
                 visibleNodes.push(child);
@@ -157,8 +138,6 @@ class Explorer {
                 }
             }
         }
-        
-        console.log('🌲 Visible nodes:', visibleNodes.length, visibleNodes);
         
         if (visibleNodes.length === 0) {
             return `
@@ -179,10 +158,8 @@ class Explorer {
         }
         
         const html = visibleNodes.map(node => {
-            console.log('🌲 Rendering node:', node.label, node.type);
             return this.renderTreeItem(node);
         }).join('');
-        console.log('🌲 Generated HTML length:', html.length);
         return html;
     }
     
@@ -375,7 +352,6 @@ class Explorer {
         console.log('🖱️ Tree click event:', event.target);
         const treeItem = event.target.closest('.tree-item');
         if (!treeItem) {
-            console.log('❌ No tree item found');
             return;
         }
 
@@ -383,7 +359,6 @@ class Explorer {
         console.log('📍 Tree item ID:', itemId);
         const item = this.dataProvider.findNodeById(itemId);
         if (!item) {
-            console.log('❌ Item not found for ID:', itemId);
             return;
         }
 
@@ -391,11 +366,9 @@ class Explorer {
         const expandButton = event.target.closest('.tree-item-expand');
         console.log('🔍 Expand button check:', expandButton);
         if (expandButton) {
-            console.log('📂 Toggling folder (expand button):', item.label, 'isExpanded:', item.isExpanded);
             event.stopPropagation();
             this.dataProvider.toggleNode(item);
             // Force refresh the entire tree to ensure UI updates
-            console.log('🔄 Force refreshing tree after expand button click...');
             this.refreshTree();
             return;
         }
@@ -410,10 +383,8 @@ class Explorer {
 
         // Check if it's a folder - if so, toggle on click
         if (item.type === 'folder' && item.collapsibleState !== 0) { // TreeItemCollapsibleState.None = 0
-            console.log('📂 Toggling folder (folder click):', item.label, 'isExpanded:', item.isExpanded);
             this.dataProvider.toggleNode(item);
             // Force refresh the entire tree to ensure UI updates
-            console.log('🔄 Force refreshing tree after folder click...');
             this.refreshTree();
             // Also select the folder
             const multiSelect = event.ctrlKey || event.metaKey;
@@ -630,7 +601,6 @@ class Explorer {
             if (treeItem) {
                 const itemId = treeItem.dataset.itemId;
                 const item = this.dataProvider.findNodeById(itemId);
-                console.log('🎯 Dragged item:', item?.label, 'ID:', itemId);
                 if (item) {
                     this.draggedItem = item;
                     e.dataTransfer.setData('text/plain', item.id);
@@ -1799,9 +1769,7 @@ class Explorer {
             }
         } else {
             // Full refresh
-            console.log('🔄 Looking for tree-view container...');
             const treeView = this.container.querySelector('.tree-view');
-            console.log('🔄 Tree view element:', treeView);
             
             if (!treeView) {
                 console.error('❌ Tree view container not found, cannot refresh');
@@ -1810,13 +1778,10 @@ class Explorer {
             
             // 프로젝트명 업데이트
             this.updateProjectNameDisplay();
-            
-            console.log('🔄 Rendering tree content...');
+           
             const treeContent = this.renderTree();
-            console.log('🔄 Tree content length:', treeContent.length);
-            
+           
             treeView.innerHTML = treeContent;
-            console.log('✅ Tree refreshed successfully');
         }
         
         // Always update accessibility properties after any refresh
@@ -1825,9 +1790,7 @@ class Explorer {
     
     updateProjectNameDisplay() {
         try {
-            console.log('🔄 Updating project name display...');
             const projectName = this.getProjectName();
-            console.log('📍 Current project name:', projectName);
             
             // 기존 프로젝트명 요소 찾기
             const titleDiv = this.container.querySelector('.explorer-title > div');
@@ -1843,7 +1806,6 @@ class Explorer {
                     }
                     projectSpan.textContent = projectName;
                     projectSpan.style.display = 'block';
-                    console.log('✅ Project name updated:', projectName);
                 } else {
                     if (projectSpan) {
                         projectSpan.style.display = 'none';

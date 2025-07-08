@@ -2,41 +2,6 @@
   "theme": "Dracula",
   "selectedAuthType": "oauth-personal",
   "mcpServers": {
-    "exa": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@smithery/cli@latest",
-        "run",
-        "exa",
-        "--key",
-        "edd85a01-7988-4db5-8783-a1bc1ad22265"
-      ]
-    },
-    "naver-search-mcp": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@smithery/cli@latest",
-        "run",
-        "@isnow890/naver-search-mcp",
-        "--key",
-        "edd85a01-7988-4db5-8783-a1bc1ad22265",
-        "--profile",
-        "medical-krill-r0NdS4"
-      ]
-    },
-    "fetch-mcp": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@smithery/cli@latest",
-        "run",
-        "fetch-mcp",
-        "--key",
-        "edd85a01-7988-4db5-8783-a1bc1ad22265"
-      ]
-    },
     "supabase": {
       "command": "npx",
       "args": [
@@ -47,25 +12,6 @@
       "env": {
         "SUPABASE_ACCESS_TOKEN": "sbp_b6dc12f28750977c5a939f8ccc0dc6a34f49ec5d"
       }
-    },
-    "kospi-kosdaq": {
-      "command": "uvx",
-      "args": [
-        "kospi_kosdaq_stock_server"
-      ]
-    },
-    "toolbox": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@smithery/cli@latest",
-        "run",
-        "@smithery/toolbox",
-        "--key",
-        "edd85a01-7988-4db5-8783-a1bc1ad22265",
-        "--profile",
-        "medical-krill-r0NdS4"
-      ]
     },
     "sequential-thinking": {
       "command": "npx",
@@ -82,6 +28,13 @@
       "env": {
         "GOOGLE_OAUTH_CREDENTIALS": "/mnt/c/project/gcp-oauth.keys.json"
       }
+    },
+    "Context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
     }
   }
 }

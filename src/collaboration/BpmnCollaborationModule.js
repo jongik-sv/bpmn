@@ -43,13 +43,13 @@ export class BpmnCollaborationModule {
    */
   async initialize(roomId, options = {}) {
     try {
-      console.log(`🔗 BPMN 협업 모듈 초기화 시도: 방 ${roomId}${options.diagramId ? ` (다이어그램: ${options.diagramId})` : ''}`);
+      // console.log(`🔗 BPMN 협업 모듈 초기화 시도: 방 ${roomId}${options.diagramId ? ` (다이어그램: ${options.diagramId})` : ''}`); // Disabled: too verbose
       
       // 협업 매니저 초기화 (실패해도 계속 진행) - diagram ID 포함
       const collaborationEnabled = await collaborationManager.initialize(roomId, options.websocketUrl, options.userInfo, options.diagramId);
       
       if (collaborationEnabled) {
-        console.log('✅ 실시간 협업 모드 활성화');
+        // console.log('✅ 실시간 협업 모드 활성화'); // Disabled: too verbose
         
         // 공유 다이어그램 데이터 구조 설정 (서버와 동일한 키 사용)
         this.sharedDiagram = collaborationManager.getSharedMap('bpmn-diagram');
@@ -65,7 +65,7 @@ export class BpmnCollaborationModule {
           await this.handleInitialDocumentSync();
         }, 500); // 500ms 대기
       } else {
-        console.log('📝 오프라인 모드 - 협업 기능 비활성화');
+        // console.log('📝 오프라인 모드 - 협업 기능 비활성화'); // Disabled: too verbose
         
         // 오프라인 모드에서는 더미 객체 생성
         this.sharedDiagram = {
@@ -85,13 +85,13 @@ export class BpmnCollaborationModule {
       this.collaborationEnabled = collaborationEnabled;
       
       if (collaborationEnabled) {
-        console.log('💾 Database persistence handled by WebSocket server');
+        // console.log('💾 Database persistence handled by WebSocket server'); // Disabled: too verbose
         if (options.diagramId) {
-          console.log(`📊 Diagram ID passed to server for persistence: ${options.diagramId}`);
+          // console.log(`📊 Diagram ID passed to server for persistence: ${options.diagramId}`); // Disabled: too verbose
         }
       }
       
-      console.log(`✅ BPMN 협업 모듈 초기화 완료: 방 ${roomId} (협업: ${collaborationEnabled ? '활성화' : '비활성화'})`);
+      // console.log(`✅ BPMN 협업 모듈 초기화 완료: 방 ${roomId} (협업: ${collaborationEnabled ? '활성화' : '비활성화'})`); // Disabled: too verbose
       
     } catch (error) {
       console.error('BPMN 협업 모듈 초기화 실패:', error);
@@ -233,10 +233,17 @@ export class BpmnCollaborationModule {
           return;
         }
         
+        // 송신 문서 내용 출력 (분석용)
+        console.log('📤 협업 송신:', {
+          xmlLength: currentXml ? currentXml.length : 0,
+          xmlPreview: currentXml ? currentXml.substring(0, 200) + '...' : 'null',
+          timestamp: new Date().toISOString()
+        });
+        
         // 원격에 변경사항 적용
         this.sharedDiagram.set('xml', currentXml);
         this.sharedDiagram.set('lastModified', Date.now());
-        this.sharedDiagram.set('lastModifiedBy', collaborationManager.getCurrentUser()?.id);
+        this.sharedDiagram.set('lastModifiedBy', collaborationManager.getCurrentUser() && collaborationManager.getCurrentUser().id);
         
         // console.log('📤 로컬 변경사항을 원격에 동기화했습니다. (서버가 10초 디바운스/1분 강제 저장 처리)'); // Disabled: too verbose
       }
@@ -282,11 +289,13 @@ export class BpmnCollaborationModule {
           return;
         }
         
-        // console.log('📝 Remote XML differs from current XML:', {
-        //   remoteLength: remoteXml.length,
-        //   currentLength: currentXml.length,
-        //   lastSyncedLength: this.syncState.lastSyncedXml?.length || 0
-        // }); // Disabled: too verbose
+        // 수신 문서 내용 출력 (분석용)
+        console.log('📥 협업 수신:', {
+          remoteLength: remoteXml.length,
+          currentLength: currentXml.length,
+          xmlPreview: remoteXml ? remoteXml.substring(0, 200) + '...' : 'null',
+          timestamp: new Date().toISOString()
+        });
         
         
         // 모델러가 준비되지 않은 경우 나중에 재시도
@@ -310,6 +319,17 @@ export class BpmnCollaborationModule {
           // console.log('🔄 Using direct import with Y.Doc remote XML (PRIMARY)...'); // Disabled: too verbose
           
           try {
+            // 모델러가 준비되었는지 다시 한 번 확인
+            if (!this.modeler || !this.modeler.get) {
+              throw new Error('Modeler not ready for import');
+            }
+            
+            // DOM 요소 확인
+            const canvas = this.modeler.get('canvas');
+            if (!canvas || !canvas.getContainer()) {
+              throw new Error('Canvas container not ready');
+            }
+            
             // Y.Doc의 실시간 데이터를 직접 사용 (서버 API 호출 없이)
             await this.modeler.importXML(remoteXml);
             // console.log('✅ Direct Y.Doc import succeeded'); // Disabled: too verbose
@@ -319,7 +339,7 @@ export class BpmnCollaborationModule {
             // 원격 변경사항은 데이터베이스에 저장하지 않음 (이미 다른 사용자가 저장했음)
             
           } catch (directImportError) {
-            console.log('⚠️ Direct import failed, trying BpmnEditor as fallback:', directImportError.message);
+            console.log('⚠️ 협업 Direct import 실패, Fallback 사용:', directImportError.message);
             
             // Fallback: DOM 에러 등의 경우 BpmnEditor를 통한 동기화 시도 (서버 API 사용)
             try {
@@ -331,9 +351,9 @@ export class BpmnCollaborationModule {
                   bpmn_xml: remoteXml
                 };
                 
-                console.log('🔄 Fallback: Syncing via BpmnEditor.openDiagram...');
+                console.log('🔄 협업 Fallback: BpmnEditor.openDiagram 사용...');
                 await window.appManager.bpmnEditor.openDiagram(diagramData);
-                console.log('✅ Fallback BpmnEditor sync succeeded');
+                console.log('✅ 협업 Fallback BpmnEditor 성공');
                 this.syncState.retryCount = 0;
                 this.syncState.lastSyncedXml = remoteXml;
                 
@@ -341,10 +361,10 @@ export class BpmnCollaborationModule {
                 throw new Error('BpmnEditor not available');
               }
             } catch (fallbackError) {
-              console.log('⚠️ Fallback BpmnEditor sync also failed:', fallbackError.message);
+              console.log('⚠️ 협업 Fallback BpmnEditor도 실패:', fallbackError.message);
               if (directImportError.message.includes('root-') || 
                   directImportError.message.includes('Cannot read properties')) {
-                console.log('⚠️ DOM error - will retry later');
+                console.log('⚠️ 협업 DOM 에러 - 나중에 재시도');
                 setTimeout(() => this.syncFromRemote(), 2000);
                 return;
               }

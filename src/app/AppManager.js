@@ -31,14 +31,17 @@ export class AppManager {
     // 파일 트리 상태
     this.expandedFolders = new Set();
     
+    // 협업 관리자 참조
+    this.collaborationManager = null;
+    
     this.initialize();
   }
 
   async initialize() {
-    console.log('AppManager initializing...');
-    
-    // 전역 객체에 dbManager 설정
+   
+    // 전역 객체 설정
     window.dbManager = dbManager;
+    window.appManager = this;
     
     // 데이터베이스 연결 테스트
     await this.testDatabaseConnection();
@@ -49,7 +52,6 @@ export class AppManager {
     // 이벤트 리스너 설정
     this.setupEventListeners();
     
-    console.log('AppManager initialized');
   }
 
   async initializeAuth() {
@@ -131,6 +133,12 @@ export class AppManager {
     this.dashboardPage.show();
     this.editorPage.hide();
     
+    // 대시보드로 이동할 때 협업 세션 해제
+    if (this.collaborationManager) {
+      console.log('🔌 대시보드 이동으로 인한 협업 세션 해제');
+      this.collaborationManager.disconnect();
+    }
+    
     // 사용자 이름 표시
     if (this.currentUser) {
       const displayName = this.currentUser.user_metadata?.display_name || 
@@ -157,8 +165,16 @@ export class AppManager {
     // VS Code 스타일 레이아웃 초기화
     await this.initializeVSCodeLayout();
     
-    // BPMN 에디터는 문서 선택 시에만 초기화 (지연 초기화)
-    // await this.initializeBpmnEditor(); // 제거됨
+    // 이전 편집 중인 에디터 내용 버리기 - 초기 화면으로 복원
+    if (this.bpmnEditor) {
+      console.log('🔄 이전 편집 내용 버리고 초기 화면으로 복원');
+      try {
+        // 에디터를 닫고 초기 상태로 복원
+        await this.bpmnEditor.closeDiagram();
+      } catch (error) {
+        console.warn('⚠️ 이전 다이어그램 닫기 실패:', error);
+      }
+    }
     
     // 파일 트리 로드 (VS Code Layout에서 실제 데이터 사용)
     if (this.vscodeLayout) {
@@ -296,7 +312,16 @@ export class AppManager {
       
       html += `
         <div class="project-card" data-project-id="${project.id}">
-          <h3>${project.name}</h3>
+          <div class="project-card-header">
+            <h3>${project.name}</h3>
+            ${role === 'owner' || role === 'admin' ? `
+              <button class="project-edit-btn" data-project-id="${project.id}" title="프로젝트 이름 수정" onclick="event.stopPropagation(); appManager.showEditProjectModal('${project.id}')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                </svg>
+              </button>
+            ` : ''}
+          </div>
           <p>${project.description || '설명이 없습니다.'}</p>
           <div class="project-meta">
             <span class="role">${roleText}</span>
@@ -316,7 +341,6 @@ export class AppManager {
       return;
     }
     
-    console.log('Opening project:', project.name);
     await this.showEditor(project);
   }
 
@@ -385,8 +409,6 @@ export class AppManager {
     try {
       this.setFormLoading(true);
 
-      console.log('🚀 AppManager: Attempting to create project...');
-      console.log('🚀 Current user:', this.currentUser);
       
       const projectData = {
         name,
@@ -396,10 +418,8 @@ export class AppManager {
         owner_email: this.currentUser.email
       };
       
-      console.log('🚀 Project data to be created:', projectData);
       const result = await dbManager.createProject(projectData);
 
-      console.log('🚀 Create project result:', result);
 
       if (result.error) {
         console.warn('Project creation returned error:', result.error);
@@ -817,76 +837,18 @@ export class AppManager {
         return;
       }
     }
+    
+    // BPMN 에디터로 다이어그램 열기 (서버에서 문서 요청)
+    const diagramData = {
+      id: diagram.id,
+      diagramId: diagram.id,
+      name: diagram.name,
+      title: diagram.name
+    };
 
+    console.log('🚀 Opening diagram with data:', diagramData);
+    
     try {
-      let bpmnXml = diagram.bpmn_xml;
-      
-      // 저장된 XML이 없으면 다양한 방법으로 가져오기 시도
-      if (!bpmnXml) {
-        console.log('⚠️ No BPMN XML found locally, trying multiple sources...');
-        
-        // 1. 데이터베이스에서 가져오기
-        try {
-          const result = await dbManager.getDiagram(diagramId);
-          if (result.data && result.data.bpmn_xml) {
-            bpmnXml = result.data.bpmn_xml;
-            console.log('✅ Fetched BPMN XML from database');
-          }
-        } catch (dbError) {
-          console.warn('⚠️ Database fetch failed:', dbError);
-        }
-        
-        // 2. 로컬 스토리지에서 가져오기
-        if (!bpmnXml) {
-          try {
-            const localKey = `bpmn-diagram-${diagramId}`;
-            const localData = localStorage.getItem(localKey);
-            if (localData) {
-              const parsed = JSON.parse(localData);
-              if (parsed.xml) {
-                bpmnXml = parsed.xml;
-                console.log('✅ Fetched BPMN XML from localStorage');
-              }
-            }
-          } catch (localError) {
-            console.warn('⚠️ localStorage fetch failed:', localError);
-          }
-        }
-      }
-
-      // 3. 기본 다이어그램 템플릿 사용
-      if (!bpmnXml) {
-        console.log('📝 Using default BPMN template');
-        bpmnXml = `<?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
-                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
-                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
-                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
-                  id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
-  <bpmn:process id="Process_1" isExecutable="true">
-    <bpmn:startEvent id="StartEvent_1"/>
-  </bpmn:process>
-  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
-    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1">
-      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
-        <dc:Bounds height="36" width="36" x="173" y="102"/>
-      </bpmndi:BPMNShape>
-    </bpmndi:BPMNPlane>
-  </bpmndi:BPMNDiagram>
-</bpmn:definitions>`;
-      }
-
-      // 로컬 다이어그램 정보 업데이트
-      diagram.bpmn_xml = bpmnXml;
-
-      const diagramData = {
-        id: diagram.id,
-        name: diagram.name,
-        content: bpmnXml
-      };
-
-      console.log('🚀 Opening diagram with data:', diagramData);
-      
       await this.bpmnEditor.openDiagram(diagramData);
       
       // 활성 항목 표시
@@ -1176,11 +1138,9 @@ export class AppManager {
   // VS Code 스타일 레이아웃 초기화
   async initializeVSCodeLayout() {
     try {
-      console.log('🎨 Initializing VS Code Layout...');
       
       // VS Code 레이아웃이 이미 있으면 재사용
       if (this.vscodeLayout) {
-        console.log('✅ VS Code Layout already exists, updating project');
         return true;
       }
       
@@ -1214,17 +1174,17 @@ export class AppManager {
       
       // VS Code 레이아웃 생성
       this.vscodeLayout = new VSCodeLayout(vscodeContainer);
-      console.log('✅ VS Code Layout created');
+      
+      // 전역 변수로 설정 (BpmnEditor에서 접근하기 위해)
+      window.vscodeLayout = this.vscodeLayout;
       
       // BPMN 에디터와 통합 설정
       if (this.bpmnEditor) {
         await this.vscodeLayout.integrateBPMNEditor(this.bpmnEditor);
       }
       
-      console.log('🎉 VS Code Layout fully initialized');
       return true;
     } catch (error) {
-      console.error('❌ VS Code Layout initialization failed:', error);
       this.showNotification('VS Code 레이아웃 초기화에 실패했습니다.', 'error');
       return false;
     }
@@ -1238,7 +1198,6 @@ export class AppManager {
     }
 
     try {
-      console.log('📊 Loading project data for:', this.currentProject.id);
       
       // 프로젝트의 폴더와 다이어그램 병렬 로드
       const [foldersResult, diagramsResult] = await Promise.all([
@@ -1251,9 +1210,6 @@ export class AppManager {
           return { data: [], error: err };
         })
       ]);
-      
-      console.log('📁 Folders result:', foldersResult);
-      console.log('📄 Diagrams result:', diagramsResult);
       
       // 프로젝트 객체에 데이터 저장
       this.currentProject.folders = foldersResult.data || [];
@@ -1276,6 +1232,9 @@ export class AppManager {
       if (!this.bpmnEditor) {
         this.bpmnEditor = new BpmnEditor();
         console.log('✅ BPMN Editor instance created (not initialized yet - waiting for document selection)');
+        
+        // 전역 변수로 설정 (협업 모듈에서 접근하기 위해)
+        window.bpmnEditor = this.bpmnEditor;
         
         // 지연 초기화: 문서가 선택될 때까지 실제 초기화를 하지 않음
         // await this.bpmnEditor.initializeWhenReady(); // 이 부분을 주석 처리
@@ -1720,6 +1679,109 @@ export class AppManager {
     $('.modal-overlay').fadeOut(() => {
       $('.modal-overlay').remove();
     });
+  }
+
+  /**
+   * 프로젝트 수정 모달 표시
+   */
+  showEditProjectModal(projectId) {
+    const project = this.projects.find(p => p.id === projectId);
+    if (!project) {
+      this.showNotification('프로젝트를 찾을 수 없습니다.', 'error');
+      return;
+    }
+
+    const modalHtml = `
+      <div class="modal-overlay">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>프로젝트 수정</h3>
+            <button class="close-btn">&times;</button>
+          </div>
+          <div class="modal-body">
+            <form id="edit-project-form">
+              <div class="form-group">
+                <label for="edit-project-name">프로젝트 이름 *</label>
+                <input type="text" id="edit-project-name" name="name" required 
+                       value="${project.name}" placeholder="프로젝트 이름을 입력하세요">
+              </div>
+              <div class="form-group">
+                <label for="edit-project-description">설명</label>
+                <textarea id="edit-project-description" name="description" 
+                          placeholder="프로젝트 설명을 입력하세요" rows="3">${project.description || ''}</textarea>
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="appManager.closeModal()">취소</button>
+                <button type="submit" class="btn btn-primary">수정</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+
+    $('body').append(modalHtml);
+
+    // 이벤트 리스너 설정
+    $('.close-btn').on('click', () => this.closeModal());
+    $('.modal-overlay').on('click', (e) => {
+      if (e.target === e.currentTarget) {
+        this.closeModal();
+      }
+    });
+
+    // 폼 제출 처리
+    $('#edit-project-form').on('submit', (e) => {
+      e.preventDefault();
+      this.handleEditProject(projectId);
+    });
+
+    // 첫 번째 입력 필드에 포커스
+    $('#edit-project-name').focus().select();
+  }
+
+  /**
+   * 프로젝트 수정 처리
+   */
+  async handleEditProject(projectId) {
+    try {
+      this.setFormLoading(true);
+
+      const formData = new FormData(document.getElementById('edit-project-form'));
+      const name = formData.get('name')?.trim();
+      const description = formData.get('description')?.trim();
+
+      if (!name) {
+        this.showNotification('프로젝트 이름을 입력해주세요.', 'error');
+        return;
+      }
+
+      // 프로젝트 업데이트
+      const updateData = {
+        name,
+        description
+      };
+
+      console.log('🔄 프로젝트 업데이트:', updateData);
+      const result = await dbManager.updateProject(projectId, updateData);
+
+      if (result.error) {
+        console.warn('프로젝트 업데이트 중 오류:', result.error);
+        this.showNotification('프로젝트 수정 중 문제가 발생했습니다.', 'warning');
+      } else {
+        this.showNotification('프로젝트가 수정되었습니다.', 'success');
+      }
+
+      // 프로젝트 목록 새로고침
+      await this.loadProjects();
+      this.closeModal();
+
+    } catch (error) {
+      console.error('프로젝트 수정 오류:', error);
+      this.showNotification(error.message || '프로젝트 수정에 실패했습니다.', 'error');
+    } finally {
+      this.setFormLoading(false);
+    }
   }
 }
 
