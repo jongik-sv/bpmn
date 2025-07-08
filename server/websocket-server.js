@@ -209,6 +209,7 @@ async function setupDocumentPersistence(roomId, ydoc, diagramId) {
 
   // Y.Doc 변경 시 저장 로직
   ydoc.on('update', (update, origin) => {
+    console.log(" yodc.on('update')");
     const metadata = documentMetadata.get(roomId)
     if (!metadata) return
 

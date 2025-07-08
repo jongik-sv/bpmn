@@ -987,7 +987,7 @@ export class BpmnEditor {
       // 협업 서버의 공유 맵에 저장 (서버가 자동으로 DB에 저장)
       if (this.collaborationModule.sharedDiagram) {
         this.collaborationModule.sharedDiagram.set('xml', xml);
-        // console.log('📤 Synced changes to collaboration server'); // Disabled: too verbose
+        console.log('📤 Synced changes to collaboration server'); // Disabled: too verbose
       } else {
         console.warn('⚠️ No shared diagram available for sync');
       }
