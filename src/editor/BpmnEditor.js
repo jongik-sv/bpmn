@@ -173,7 +173,7 @@ export class BpmnEditor {
     
     // 협업 룸 ID 업데이트 (문서별 고유 룸)
     if (this.collaborationModule && project && this.currentDiagram) {
-      const roomId = `project-${project.id}-diagram-${this.currentDiagram.id || this.currentDiagram.diagramId}`;
+      const roomId = this.currentDiagram.id || this.currentDiagram.diagramId;
       
       console.log('🔄 Room ID generation in setCurrentProject:', {
         projectId: project.id,
@@ -266,43 +266,79 @@ export class BpmnEditor {
   }
 
   /**
-   * 다이어그램 열기
+   * 다이어그램 열기 - 서버에서 문서 요청
    */
   async openDiagram(diagramData) {
     try {
-      console.log('📂 openDiagram called with:', {
-        diagramId: diagramData?.id || diagramData?.diagramId,
-        diagramName: diagramData?.name || diagramData?.title,
-        previousDiagram: this.currentDiagram?.id,
-        fullData: diagramData
-      });
+      // console.log('📂 openDiagram called with:', {
+      //   diagramId: diagramData?.id || diagramData?.diagramId,
+      //   diagramName: diagramData?.name || diagramData?.title,
+      //   previousDiagram: this.currentDiagram?.id,
+      //   fullData: diagramData
+      // }); // Disabled: too verbose
       
-      this.currentDiagram = diagramData;
-      
-      console.log('✅ currentDiagram updated:', {
-        newDiagramId: this.currentDiagram?.id || this.currentDiagram?.diagramId,
-        newDiagramName: this.currentDiagram?.name || this.currentDiagram?.title
-      });
-      
-      // BPMN XML 로드 (빈 문서인 경우 디폴트 문서 사용)
-      let xml = diagramData.content || newDiagramXML;
-      
-      // 빈 문서이거나 유효하지 않은 XML인 경우 디폴트 문서로 대체
-      if (!xml || xml.trim() === '' || !this.isValidBpmnXml(xml)) {
-        console.warn('빈 문서이거나 유효하지 않은 XML입니다. 디폴트 문서로 대체합니다.');
-        xml = newDiagramXML;
-        
-        // 현재 다이어그램 데이터도 업데이트
-        if (this.currentDiagram) {
-          this.currentDiagram.content = xml;
-        }
+      const diagramId = diagramData?.id || diagramData?.diagramId;
+      if (!diagramId) {
+        throw new Error('다이어그램 ID가 없습니다.');
       }
       
-      await this.modeler.importXML(xml);
+      // 서버에 문서 요청
+      // console.log(`📡 서버에 문서 요청: ${diagramId}`); // Disabled: too verbose
+      const response = await fetch(`http://localhost:1234/api/document/${diagramId}`);
+      
+      if (!response.ok) {
+        throw new Error(`서버 오류: ${response.status} ${response.statusText}`);
+      }
+      
+      const documentData = await response.json();
+      
+      if (!documentData.success) {
+        throw new Error(documentData.error || '문서 로드 실패');
+      }
+      
+      // console.log(`📤 서버에서 문서 수신:`, documentData); // Disabled: too verbose
+      
+      // 로컬과 같으면 적용할 필요없음, 다를 경우만 적용
+      this.currentDiagram = {
+        ...diagramData,
+        content: documentData.xml,
+        name: documentData.name
+      };
+      
+      // console.log('✅ currentDiagram updated:', {
+      //   newDiagramId: this.currentDiagram?.id || this.currentDiagram?.diagramId,
+      //   newDiagramName: this.currentDiagram?.name || this.currentDiagram?.title
+      // }); // Disabled: too verbose
+      
+      // 서버에서 받은 XML과 현재 로컬 XML 비교
+      const serverXml = documentData.xml || newDiagramXML;
+      let shouldImport = true;
+      
+      try {
+        // 현재 모델러의 XML을 가져와서 비교
+        const currentResult = await this.modeler.saveXML({ format: true });
+        const currentXml = currentResult.xml;
+        
+        // XML 내용이 같은지 확인 (공백 제거 후 비교)
+        const normalizeXml = (xml) => xml.replace(/\s+/g, ' ').trim();
+        if (normalizeXml(currentXml) === normalizeXml(serverXml)) {
+          // console.log('✅ 로컬과 서버 XML이 동일함, 가져오기 건너뛰기'); // Disabled: too verbose
+          shouldImport = false;
+        } else {
+          // console.log('🔄 로컬과 서버 XML이 다름, 서버 XML 적용'); // Disabled: too verbose
+        }
+      } catch (error) {
+        console.log('⚠️ 현재 XML 비교 실패, 서버 XML 적용:', error.message);
+      }
+      
+      // 다른 경우만 서버 XML 적용
+      if (shouldImport) {
+        await this.modeler.importXML(serverXml);
+      }
       
       // 다이어그램 로드 후 협업 룸 업데이트
       if (this.currentProject && this.collaborationModule) {
-        const roomId = `project-${this.currentProject.id}-diagram-${this.currentDiagram.id || this.currentDiagram.diagramId}`;
+        const roomId = this.currentDiagram.id || this.currentDiagram.diagramId;
         
         console.log('🔄 Updating collaboration room after diagram load:', {
           projectId: this.currentProject.id,
@@ -331,7 +367,7 @@ export class BpmnEditor {
         try {
           const canvas = this.modeler.get('canvas');
           canvas.resized();
-          console.log('Canvas resized after diagram load');
+          // console.log('Canvas resized after diagram load'); // Disabled: too verbose
         } catch (resizeError) {
           console.warn('Canvas resize failed:', resizeError);
         }
@@ -343,6 +379,12 @@ export class BpmnEditor {
       
       // 브레드크럼 업데이트
       this.updateBreadcrumb();
+      
+      // 헤더 표시 및 협업 정보 업데이트
+      console.log('🎯 Calling showEditorHeader from openDiagram');
+      this.showEditorHeader();
+      console.log('🎯 Calling updateCollaborationInfo from openDiagram');
+      this.updateCollaborationInfo();
       
       console.log('Diagram loaded successfully:', diagramData.name);
       
@@ -608,7 +650,7 @@ export class BpmnEditor {
         
         // 서버 측 저장 시스템: 클라이언트 자동 저장 완전 비활성화
         // 모든 저장은 협업 서버에서 중앙 관리
-        console.log('📝 Server-side persistence: Client auto-save disabled');
+        // console.log('📝 Server-side persistence: Client auto-save disabled'); // Disabled: too verbose
         
         // 협업 모드인 경우 서버로 변경사항 전송
         if (this.collaborationModule && this.collaborationModule.isConnectedToServer()) {
@@ -645,7 +687,7 @@ export class BpmnEditor {
       
       // 협업 이벤트 리스너 설정
       this.collaborationModule.on('connectionChange', (data) => {
-        console.log('Collaboration connection:', data);
+        // console.log('Collaboration connection:', data); // Disabled: too verbose
         this.updateCollaborationStatus(data.connected);
       });
       
@@ -668,8 +710,8 @@ export class BpmnEditor {
       });
       
       // 룸 ID와 다이어그램 ID 생성 (문서별 고유 룸)
-      const roomId = this.currentProject && this.currentDiagram 
-        ? `project-${this.currentProject.id}-diagram-${this.currentDiagram.id || this.currentDiagram.diagramId}`
+      const roomId = this.currentDiagram 
+        ? (this.currentDiagram.id || this.currentDiagram.diagramId)
         : 'demo-room';
       const diagramId = this.currentDiagram ? (this.currentDiagram.id || this.currentDiagram.diagramId) : null;
       
@@ -820,6 +862,7 @@ export class BpmnEditor {
    * 브레드크럼 업데이트
    */
   updateBreadcrumb() {
+    // 기존 jQuery 브레드크럼 업데이트 (하위 호환성)
     const breadcrumb = $('#breadcrumb');
     
     if (this.currentProject && this.currentDiagram) {
@@ -829,6 +872,100 @@ export class BpmnEditor {
     } else {
       breadcrumb.text('');
     }
+
+    // VSCodeLayout 헤더 브레드크럼 업데이트
+    if (window.vscodeLayout) {
+      const breadcrumbData = [];
+      
+      if (this.currentProject) {
+        breadcrumbData.push({
+          id: this.currentProject.id,
+          name: this.currentProject.name,
+          icon: '📁'
+        });
+      }
+      
+      if (this.currentDiagram) {
+        breadcrumbData.push({
+          id: this.currentDiagram.id || this.currentDiagram.diagramId,
+          name: this.currentDiagram.name,
+          icon: '📄'
+        });
+      }
+      
+      window.vscodeLayout.updateBreadcrumb(breadcrumbData);
+    }
+  }
+
+  /**
+   * 에디터 헤더 표시
+   */
+  showEditorHeader() {
+    console.log('🎯 showEditorHeader called', {
+      hasVscodeLayout: !!window.vscodeLayout,
+      hasShowMethod: !!(window.vscodeLayout?.showEditorHeader)
+    });
+    
+    if (window.vscodeLayout) {
+      window.vscodeLayout.showEditorHeader();
+      console.log('✅ Editor header show command sent');
+    } else {
+      console.warn('❌ window.vscodeLayout not available');
+    }
+  }
+
+  /**
+   * 협업 정보 업데이트
+   */
+  updateCollaborationInfo() {
+    if (this.collaborationModule && window.vscodeLayout) {
+      // 협업 상태 이벤트 리스너 설정
+      this.collaborationModule.on('awarenessChange', () => {
+        this.updateConnectedUsersInHeader();
+      });
+      
+      this.collaborationModule.on('connectionChange', () => {
+        this.updateConnectedUsersInHeader();
+      });
+      
+      // 초기 접속자 정보 업데이트
+      this.updateConnectedUsersInHeader();
+    }
+  }
+
+  /**
+   * 헤더의 접속자 정보 업데이트
+   */
+  updateConnectedUsersInHeader() {
+    if (!this.collaborationModule || !window.vscodeLayout) {
+      return;
+    }
+
+    try {
+      const connectedUsers = this.collaborationModule.getConnectedUsers();
+      const users = connectedUsers.map(user => ({
+        id: user.id,
+        name: user.name || 'Anonymous',
+        email: user.email,
+        avatar: this.getUserAvatar(user),
+        status: user.status || 'online'
+      }));
+      
+      window.vscodeLayout.updateConnectedUsers(users);
+    } catch (error) {
+      console.warn('Failed to update connected users in header:', error);
+    }
+  }
+
+  /**
+   * 사용자 아바타 생성
+   */
+  getUserAvatar(user) {
+    // 사용자 이름의 첫 글자를 아바타로 사용
+    if (user.name && user.name.length > 0) {
+      return user.name.charAt(0).toUpperCase();
+    }
+    return '👤';
   }
 
   /**
@@ -846,7 +983,7 @@ export class BpmnEditor {
       // 협업 서버의 공유 맵에 저장 (서버가 자동으로 DB에 저장)
       if (this.collaborationModule.sharedDiagram) {
         this.collaborationModule.sharedDiagram.set('xml', xml);
-        console.log('📤 Synced changes to collaboration server');
+        // console.log('📤 Synced changes to collaboration server'); // Disabled: too verbose
       } else {
         console.warn('⚠️ No shared diagram available for sync');
       }

@@ -191,7 +191,7 @@ export class BpmnCollaborationModule {
     
     // 10초마다 한 번씩만 로그 출력
     if (now - this.syncState.lastRetryLog > 10000) {
-      console.log('📨 Remote change detected, syncing from remote');
+      // console.log('📨 Remote change detected, syncing from remote'); // Disabled: too verbose
       this.syncState.lastRetryLog = now;
     }
 
@@ -238,7 +238,7 @@ export class BpmnCollaborationModule {
         this.sharedDiagram.set('lastModified', Date.now());
         this.sharedDiagram.set('lastModifiedBy', collaborationManager.getCurrentUser()?.id);
         
-        console.log('📤 로컬 변경사항을 원격에 동기화했습니다. (서버가 10초 디바운스/1분 강제 저장 처리)');
+        // console.log('📤 로컬 변경사항을 원격에 동기화했습니다. (서버가 10초 디바운스/1분 강제 저장 처리)'); // Disabled: too verbose
       }
       
     } catch (error) {
@@ -274,22 +274,27 @@ export class BpmnCollaborationModule {
       if (remoteXml) {
         const currentXml = await this.getCurrentBpmnXml();
         
-        // 변경사항이 있는지 확인 (이전에 동기화된 XML과도 비교)
-        const isReallyDifferent = remoteXml !== currentXml && remoteXml !== this.syncState.lastSyncedXml;
+        // 변경사항이 있는지 확인 (현재 로컬 XML과만 비교)
+        const isDifferent = remoteXml !== currentXml;
         
-        if (!isReallyDifferent) {
-          console.log('✅ XML content is same or already synced, no sync needed');
+        if (!isDifferent) {
+          // console.log('✅ XML content is same as current, no sync needed'); // Disabled: too verbose
           return;
         }
         
-        console.log('📝 XML content differs, proceeding with import...');
+        // console.log('📝 Remote XML differs from current XML:', {
+        //   remoteLength: remoteXml.length,
+        //   currentLength: currentXml.length,
+        //   lastSyncedLength: this.syncState.lastSyncedXml?.length || 0
+        // }); // Disabled: too verbose
+        
         
         // 모델러가 준비되지 않은 경우 나중에 재시도
         const modelerReady = this.isModelerReady();
-        console.log('🔧 Modeler ready check:', {
-          isReady: modelerReady,
-          hasModeler: !!this.modeler
-        });
+        // console.log('🔧 Modeler ready check:', {
+        //   isReady: modelerReady,
+        //   hasModeler: !!this.modeler
+        // }); // Disabled: too verbose
         
         if (!modelerReady) {
           console.log(`⏳ Modeler not ready, retrying...`);
@@ -297,49 +302,48 @@ export class BpmnCollaborationModule {
           return;
         }
         
-        // 로컬에 원격 변경사항 적용 (안전한 방식)
+        // 로컬에 원격 변경사항 적용 (실시간 Y.Doc 데이터 사용)
         try {
-          console.log('🔧 Starting XML import process...');
+          // console.log('🔧 Starting XML import process with Y.Doc data...'); // Disabled: too verbose
           
-          // DOM 에러를 피하기 위해 Editor를 통한 동기화 시도
-          console.log('🔄 Attempting sync via BpmnEditor instead of direct import...');
+          // Primary: Y.Doc에서 받은 원격 XML을 직접 적용 (실시간 데이터)
+          // console.log('🔄 Using direct import with Y.Doc remote XML (PRIMARY)...'); // Disabled: too verbose
           
           try {
-            // BpmnEditor의 openDiagram 메서드를 통해 안전하게 로드
-            if (window.appManager && window.appManager.bpmnEditor) {
-              // 현재 다이어그램 데이터 구성
-              const diagramData = {
-                id: this.getCurrentDiagramId(),
-                content: remoteXml,
-                bpmn_xml: remoteXml
-              };
-              
-              console.log('🔄 Syncing via BpmnEditor.openDiagram...');
-              await window.appManager.bpmnEditor.openDiagram(diagramData);
-              console.log('✅ 원격 변경사항을 BpmnEditor를 통해 동기화했습니다.');
-              this.syncState.retryCount = 0;
-              this.syncState.lastSyncedXml = remoteXml; // 동기화된 XML 저장
-              
-              // 원격 변경사항은 데이터베이스에 저장하지 않음 (이미 다른 사용자가 저장했음)
-            } else {
-              console.log('⚠️ BpmnEditor not available, falling back to direct import...');
-              throw new Error('BpmnEditor not available');
-            }
-          } catch (editorSyncError) {
-            console.log('⚠️ Editor sync failed, trying direct import as fallback:', editorSyncError.message);
+            // Y.Doc의 실시간 데이터를 직접 사용 (서버 API 호출 없이)
+            await this.modeler.importXML(remoteXml);
+            // console.log('✅ Direct Y.Doc import succeeded'); // Disabled: too verbose
+            this.syncState.retryCount = 0;
+            this.syncState.lastSyncedXml = remoteXml; // 동기화된 XML 저장
             
-            // 기존 직접 import 방식을 fallback으로 사용
+            // 원격 변경사항은 데이터베이스에 저장하지 않음 (이미 다른 사용자가 저장했음)
+            
+          } catch (directImportError) {
+            console.log('⚠️ Direct import failed, trying BpmnEditor as fallback:', directImportError.message);
+            
+            // Fallback: DOM 에러 등의 경우 BpmnEditor를 통한 동기화 시도 (서버 API 사용)
             try {
-              await this.modeler.importXML(remoteXml);
-              console.log('✅ Fallback direct import succeeded');
-              this.syncState.retryCount = 0;
-              this.syncState.lastSyncedXml = remoteXml; // 동기화된 XML 저장
-              
-              // 원격 변경사항은 데이터베이스에 저장하지 않음
+              if (window.appManager && window.appManager.bpmnEditor) {
+                // 현재 다이어그램 데이터 구성
+                const diagramData = {
+                  id: this.getCurrentDiagramId(),
+                  content: remoteXml,
+                  bpmn_xml: remoteXml
+                };
+                
+                console.log('🔄 Fallback: Syncing via BpmnEditor.openDiagram...');
+                await window.appManager.bpmnEditor.openDiagram(diagramData);
+                console.log('✅ Fallback BpmnEditor sync succeeded');
+                this.syncState.retryCount = 0;
+                this.syncState.lastSyncedXml = remoteXml;
+                
+              } else {
+                throw new Error('BpmnEditor not available');
+              }
             } catch (fallbackError) {
-              console.log('⚠️ Fallback import also failed:', fallbackError.message);
-              if (fallbackError.message.includes('root-') || 
-                  fallbackError.message.includes('Cannot read properties')) {
+              console.log('⚠️ Fallback BpmnEditor sync also failed:', fallbackError.message);
+              if (directImportError.message.includes('root-') || 
+                  directImportError.message.includes('Cannot read properties')) {
                 console.log('⚠️ DOM error - will retry later');
                 setTimeout(() => this.syncFromRemote(), 2000);
                 return;
@@ -460,11 +464,11 @@ export class BpmnCollaborationModule {
     this.emit('connectionChange', event);
     
     if (event.connected) {
-      console.log('🔗 협업 서버에 연결되었습니다.');
+      // console.log('🔗 협업 서버에 연결되었습니다.'); // Disabled: too verbose
       // 재연결 시 동기화
       this.syncFromRemote();
     } else {
-      console.log('⚠️ 협업 서버와의 연결이 끊어졌습니다.');
+      // console.log('⚠️ 협업 서버와의 연결이 끊어졌습니다.'); // Disabled: too verbose
     }
   }
 
@@ -476,7 +480,7 @@ export class BpmnCollaborationModule {
     this.emit('awarenessChange', event);
     
     const users = collaborationManager.getConnectedUsers();
-    console.log(`👥 연결된 사용자: ${users.length}명`);
+    // console.log(`👥 연결된 사용자: ${users.length}명`); // Disabled: too verbose
   }
 
   /**
@@ -817,35 +821,31 @@ export class BpmnCollaborationModule {
     console.log(`🔄 협업 룸 변경: ${newRoomId}`);
     
     try {
-      // 연결 해제 전에 사용자 정보 백업
-      let currentUserInfo = null;
-      if (this.isInitialized && !userInfo) {
-        // disconnect 하기 전에 사용자 정보 백업
-        currentUserInfo = collaborationManager.getCurrentUser();
-        console.log('💾 백업된 사용자 정보:', currentUserInfo);
+      // 초기화되지 않은 경우 전체 초기화
+      if (!this.isInitialized) {
+        const finalUserInfo = userInfo || {
+          id: 'anonymous-' + Date.now(),
+          name: 'Anonymous User',
+          email: 'anonymous@example.com'
+        };
+        
+        await this.initialize(newRoomId, {
+          websocketUrl: 'ws://localhost:1234',
+          userInfo: finalUserInfo,
+          diagramId: diagramId
+        });
+      } else {
+        // 이미 초기화된 경우 룸만 변경 (재연결 없이)
+        const success = await collaborationManager.changeRoom(newRoomId, diagramId);
+        if (!success) {
+          throw new Error('룸 변경 실패');
+        }
+        
+        // 사용자 정보가 제공된 경우 업데이트
+        if (userInfo) {
+          collaborationManager.updateUserInfo(userInfo);
+        }
       }
-      
-      // 현재 연결 해제
-      if (this.isInitialized) {
-        collaborationManager.disconnect();
-        this.isInitialized = false;
-      }
-      
-      // 사용자 정보 결정 (우선순위: 매개변수 > 백업된 정보 > 기본값)
-      const finalUserInfo = userInfo || currentUserInfo || {
-        id: 'anonymous-' + Date.now(),
-        name: 'Anonymous User',
-        email: 'anonymous@example.com'
-      };
-      
-      console.log('👤 사용할 사용자 정보:', finalUserInfo);
-      
-      // 새 룸으로 재연결 (diagram ID 포함)
-      await this.initialize(newRoomId, {
-        websocketUrl: 'ws://localhost:1234',
-        userInfo: finalUserInfo,
-        diagramId: diagramId // 서버 측 저장을 위한 diagram ID 전달
-      });
       
       console.log(`✅ 협업 룸 변경 완료: ${newRoomId}`);
       
@@ -860,6 +860,13 @@ export class BpmnCollaborationModule {
    */
   isConnectedToServer() {
     return collaborationManager.isConnectedToServer();
+  }
+
+  /**
+   * 연결된 사용자 목록을 가져옵니다.
+   */
+  getConnectedUsers() {
+    return collaborationManager.getConnectedUsers();
   }
 
   /**

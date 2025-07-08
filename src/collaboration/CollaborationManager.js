@@ -15,6 +15,7 @@ export class CollaborationManager {
     this.userId = null; // 실제 로그인 사용자 ID 사용
     this.userColor = null;
     this.currentRoomId = null;
+    this.websocketUrl = null;
   }
 
   /**
@@ -37,16 +38,19 @@ export class CollaborationManager {
         this.userId = safeUserInfo.id || this.generateUserId();
         this.userColor = this.generateUserColor(this.userId);
         this.currentRoomId = roomId;
+        this.websocketUrl = websocketUrl;
         
-        console.log(`🔗 협업 초기화 시도: 방 ID=${roomId}, 사용자 ID=${this.userId}, 이름=${safeUserInfo.name || 'Unknown'}`);
+        // console.log(`🔗 협업 초기화 시도: 방 ID=${roomId}, 사용자 ID=${this.userId}, 이름=${safeUserInfo.name || 'Unknown'}`); // Disabled: too verbose
         
         // Yjs 문서 생성
         this.ydoc = new Y.Doc();
         
-        // WebSocket URL 구성 (Y.js WebsocketProvider는 wsUrl을 base로 사용하고 roomId를 추가함)
-        const wsUrl = websocketUrl; // 기본 URL만 사용
+        // WebSocket URL 구성 (diagramId를 URL 파라미터로 전달)
+        const wsUrl = diagramId ? 
+          `${websocketUrl}?diagramId=${encodeURIComponent(diagramId)}` : 
+          websocketUrl;
         
-        console.log(`🔗 WebSocket 연결 정보: URL=${wsUrl}, 룸ID=${roomId}`);
+        // console.log(`🔗 WebSocket 연결 정보: URL=${wsUrl}, 룸ID=${roomId}`); // Disabled: too verbose
         
         // WebSocket 프로바이더 생성 (타임아웃 추가)
         this.provider = new WebsocketProvider(wsUrl, roomId, this.ydoc, {
@@ -71,21 +75,14 @@ export class CollaborationManager {
           if (event.status === 'connected') {
             clearTimeout(connectionTimeout);
             this.isConnected = true;
-            console.log('✅ 협업 서버 연결 성공');
+            // console.log('✅ 협업 서버 연결 성공'); // Disabled: too verbose
             
-            // 연결 성공 후 diagramId 전송 (서버 측 저장을 위해)
-            if (diagramId && this.provider.ws) {
-              this.provider.ws.send(JSON.stringify({
-                type: 'diagram-id',
-                diagramId: diagramId,
-                roomId: roomId
-              }));
-            }
+            // diagramId는 이제 URL 파라미터로 전달되므로 별도 메시지 불필요
             
             resolve(true);
           } else if (event.status === 'disconnected') {
             this.isConnected = false;
-            console.log('📡 협업 서버 연결 끊어짐');
+            // console.log('📡 협업 서버 연결 끊어짐'); // Disabled: too verbose
           }
         });
         
@@ -126,6 +123,9 @@ export class CollaborationManager {
 
         // 페이지 가시성 변경 이벤트 리스너
         this.setupVisibilityHandler();
+        
+        // 페이지 종료 시 연결 해제 처리
+        this.setupPageUnloadHandler();
         
         console.log(`🔗 협업 세션 초기화 완료: 방 ID ${roomId}, 사용자 ID ${this.userId}`);
         
@@ -226,6 +226,29 @@ export class CollaborationManager {
   }
 
   /**
+   * 페이지 종료 시 연결 해제 처리
+   */
+  setupPageUnloadHandler() {
+    // beforeunload 이벤트 (페이지 새로고침, 닫기)
+    window.addEventListener('beforeunload', () => {
+      console.log('🔌 페이지 종료로 인한 협업 세션 해제');
+      this.disconnect();
+    });
+    
+    // pagehide 이벤트 (뒤로가기, 다른 페이지 이동)
+    window.addEventListener('pagehide', () => {
+      console.log('🔌 페이지 숨김으로 인한 협업 세션 해제');
+      this.disconnect();
+    });
+    
+    // unload 이벤트 (브라우저 탭 닫기)
+    window.addEventListener('unload', () => {
+      console.log('🔌 페이지 언로드로 인한 협업 세션 해제');
+      this.disconnect();
+    });
+  }
+
+  /**
    * 공유 맵 데이터를 가져옵니다.
    * @param {string} mapName - 맵 이름
    * @returns {Y.Map} 공유 맵
@@ -277,6 +300,86 @@ export class CollaborationManager {
     });
     
     return users;
+  }
+
+  /**
+   * 새로운 룸으로 변경합니다 (재연결 없이)
+   * @param {string} newRoomId - 새 룸 ID
+   * @param {string} diagramId - 다이어그램 ID
+   * @returns {Promise<boolean>} 성공 여부
+   */
+  async changeRoom(newRoomId, diagramId = null) {
+    if (!this.provider || !this.isConnected) {
+      console.warn('⚠️ 연결되지 않은 상태에서는 룸을 변경할 수 없습니다.');
+      return false;
+    }
+
+    if (this.currentRoomId === newRoomId) {
+      console.log(`✅ 이미 같은 룸에 있습니다: ${newRoomId}`);
+      return true;
+    }
+
+    try {
+      console.log(`🔄 룸 변경: ${this.currentRoomId} → ${newRoomId}`);
+
+      // 새 Y.Doc 생성
+      const newYdoc = new Y.Doc();
+      
+      // 새 WebSocket URL 구성
+      const wsUrl = diagramId ? 
+        `${this.websocketUrl}?diagramId=${encodeURIComponent(diagramId)}` : 
+        this.websocketUrl;
+
+      // 기존 연결 해제
+      if (this.provider) {
+        this.provider.destroy();
+      }
+
+      // 새 연결 생성
+      this.ydoc = newYdoc;
+      this.currentRoomId = newRoomId;
+      
+      this.provider = new WebsocketProvider(wsUrl, newRoomId, this.ydoc, {
+        maxBackoffTime: 10000,
+        maxRetries: 3
+      });
+
+      this.awareness = this.provider.awareness;
+      
+      // 이벤트 리스너 재설정
+      this.setupEventListeners();
+
+      console.log(`✅ 룸 변경 완료: ${newRoomId}`);
+      return true;
+
+    } catch (error) {
+      console.error('❌ 룸 변경 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 사용자 정보를 업데이트합니다.
+   * @param {Object} userInfo - 새 사용자 정보
+   */
+  updateUserInfo(userInfo) {
+    if (!this.awareness || !userInfo) {
+      return;
+    }
+
+    try {
+      const currentState = this.awareness.localState;
+      this.awareness.setLocalStateField('user', {
+        ...currentState?.user,
+        ...userInfo,
+        timestamp: Date.now(),
+        status: 'active'
+      });
+      
+      console.log('👤 사용자 정보 업데이트:', userInfo);
+    } catch (error) {
+      console.warn('⚠️ 사용자 정보 업데이트 실패:', error);
+    }
   }
 
   /**
