@@ -5,7 +5,7 @@
 
 export { EditorHeaderCore } from './EditorHeaderCore.js';
 export { EditorHeaderEventHandler } from './EditorHeaderEventHandler.js';
-export { default as EditorHeader } from './EditorHeaderNew.js';
+export { EditorHeader } from './EditorHeaderNew.js';
 
 // 하위 호환성을 위한 기본 export
-export { default } from './EditorHeaderNew.js';
+export { EditorHeader as default } from './EditorHeaderNew.js';

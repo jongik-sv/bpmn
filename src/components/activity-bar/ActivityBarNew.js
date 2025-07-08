@@ -137,4 +137,5 @@ class ActivityBar {
     }
 }
 
+export { ActivityBar };
 export default ActivityBar;

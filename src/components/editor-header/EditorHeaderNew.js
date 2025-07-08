@@ -222,4 +222,5 @@ class EditorHeader {
     }
 }
 
+export { EditorHeader };
 export default EditorHeader;

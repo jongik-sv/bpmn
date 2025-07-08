@@ -221,4 +221,5 @@ class ProjectManager {
     }
 }
 
+export { ProjectManager };
 export default ProjectManager;

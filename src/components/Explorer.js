@@ -3,8 +3,8 @@
  * Implements Explorer view with tree structure similar to VS Code
  */
 
-import TreeDataProvider from './TreeDataProvider.js';
-import ContextMenu from './ContextMenu.js';
+import { TreeDataProvider } from './tree-data/index.js';
+import { ContextMenu } from './context-menu/index.js';
 
 class Explorer {
     constructor(container) {

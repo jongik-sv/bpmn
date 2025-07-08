@@ -408,3 +408,93 @@ The project currently maintains two parallel implementations:
 - Both implementations should be kept in sync when adding new features
 - Use the legacy implementation for production, modern implementation for new development
 - 리펙토링을 실시한다.
+
+## 🏗️ 모듈화 개발 가이드라인 (MANDATORY)
+
+### 🔄 모듈화 패턴 (새 컴포넌트 개발 시 필수)
+새로운 컴포넌트 개발 시 **반드시** 다음 패턴을 따라야 합니다:
+
+1. **Core 모듈**: 핵심 로직과 렌더링 담당
+2. **EventHandler 모듈**: 이벤트 처리 전담
+3. **통합 클래스**: Core + EventHandler 조합
+4. **index.js**: 모듈 전체 export 관리
+
+### 📂 필수 파일 구조
+```javascript
+// 새 모듈 생성 시 반드시 따라야 할 구조
+components/
+└── new-component/
+    ├── NewComponentCore.js        # 핵심 기능 (필수)
+    ├── NewComponentEventHandler.js # 이벤트 처리 (필수)
+    ├── NewComponentNew.js         # 통합 클래스 (필수)
+    └── index.js                   # Export 관리 (필수)
+```
+
+### 🔗 Import/Export 규칙 (필수)
+```javascript
+// 모듈 내부 export (index.js)
+export { NewComponentCore } from './NewComponentCore.js';
+export { NewComponentEventHandler } from './NewComponentEventHandler.js';
+export { NewComponent } from './NewComponentNew.js';
+
+// 외부에서 사용 시
+import { NewComponent } from './components/new-component/index.js';
+```
+
+### 🎯 책임 분리 원칙 (필수)
+1. **Single Responsibility**: 각 모듈은 하나의 책임만 가져야 함
+2. **Separation of Concerns**: 렌더링과 이벤트 처리를 반드시 분리
+3. **Loose Coupling**: EventEmitter를 통한 모듈 간 통신만 허용
+4. **High Cohesion**: 관련 기능들을 모듈로 묶어야 함
+
+### 🔄 이벤트 통신 패턴 (필수)
+```javascript
+// EventEmitter 기반 통신 (필수 패턴)
+class ComponentNew extends EventEmitter {
+    constructor() {
+        super();
+        this.core = new ComponentCore();
+        this.eventHandler = new ComponentEventHandler();
+        
+        // 모듈 간 이벤트 연결 (필수)
+        this.eventHandler.on('action', (data) => {
+            this.emit('action', data);
+        });
+    }
+}
+```
+
+### 📊 현재 모듈화 현황
+**✅ 완료된 모듈화:**
+- ActivityBar → `activity-bar/`
+- ContextMenu → `context-menu/`
+- DragDropController → `drag-drop/`
+- EditorHeader → `editor-header/`
+- ProjectManager → `project-manager/`
+- TreeDataProvider → `tree-data/`
+- AccessibilityManager → `accessibility/`
+- BpmnEditor → `bpmn-editor/`
+- Explorer → `explorer/`
+- VSCodeLayout → `vscode-layout/`
+- Auth → `auth/`
+- Database → `lib/database/`
+- AppManager → `app/managers/`
+
+### 🚫 금지사항
+1. **순환 참조 생성 절대 금지**
+2. **직접적인 DOM 조작 최소화**
+3. **전역 변수 사용 금지**
+4. **단일 파일 컴포넌트 생성 금지** (반드시 모듈화)
+5. **하드코딩된 값 사용 금지**
+
+### ✅ 필수 사항
+1. **EventEmitter를 통한 모듈 간 통신만 허용**
+2. **상수는 별도 파일로 관리**
+3. **에러 처리 및 로깅 필수**
+4. **성능 고려한 코드 작성**
+5. **새 컴포넌트 개발 시 모듈화 패턴 필수 적용**
+
+### 📋 참고 문서
+- **SRC_STRUCTURE_GUIDE.md**: 프로젝트 구조 및 상세 가이드
+- **src/components/MIGRATION_GUIDE.md**: 마이그레이션 가이드
+- **REFACTORING-SUMMARY.md**: 리팩토링 완료 보고서

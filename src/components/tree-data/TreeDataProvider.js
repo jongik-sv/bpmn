@@ -446,4 +446,5 @@ class TreeDataProvider {
     }
 }
 
+export { TreeDataProvider };
 export default TreeDataProvider;

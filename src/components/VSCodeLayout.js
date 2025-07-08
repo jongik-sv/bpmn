@@ -3,11 +3,11 @@
  * Integrates Activity Bar, Explorer, and Editor in VS Code-style layout
  */
 
-import ActivityBar from './ActivityBar.js';
+import { ActivityBar } from './activity-bar/index.js';
 import Explorer from './Explorer.js';
-import AccessibilityManager from './AccessibilityManager.js';
-import DragDropController from './DragDropController.js';
-import EditorHeader from './EditorHeader.js';
+import { AccessibilityManager } from './accessibility/index.js';
+import { DragDropController } from './drag-drop/index.js';
+import { EditorHeader } from './editor-header/index.js';
 
 class VSCodeLayout {
     constructor(container) {
@@ -877,7 +877,7 @@ class VSCodeLayout {
         const { currentProject } = appManager;
         
         // 실제 프로젝트 데이터로 트리 구조 생성
-        const { FileTreeItem, TreeItemCollapsibleState } = await import('./TreeDataProvider.js');
+        const { FileTreeItem, TreeItemCollapsibleState } = await import('./tree-data/index.js');
         
         // 프로젝트 루트 생성 (루트로 표시)
         const root = new FileTreeItem('루트', 'folder', TreeItemCollapsibleState.Expanded);
@@ -918,7 +918,7 @@ class VSCodeLayout {
     }
     
     async createFolderTreeItem(folder, allFolders, allDiagrams) {
-        const { FileTreeItem, TreeItemCollapsibleState } = await import('./TreeDataProvider.js');
+        const { FileTreeItem, TreeItemCollapsibleState } = await import('./tree-data/index.js');
         
         // 폴더 아이템 생성
         const folderItem = new FileTreeItem(
@@ -962,7 +962,7 @@ class VSCodeLayout {
     }
     
     async createDiagramTreeItem(diagram) {
-        const { FileTreeItem } = await import('./TreeDataProvider.js');
+        const { FileTreeItem } = await import('./tree-data/index.js');
         
         // 다이어그램 아이템 생성
         const diagramItem = new FileTreeItem(`${diagram.name}.bpmn`, 'file');

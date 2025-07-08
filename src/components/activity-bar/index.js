@@ -5,7 +5,7 @@
 
 export { ActivityBarCore } from './ActivityBarCore.js';
 export { ActivityBarEventHandler } from './ActivityBarEventHandler.js';
-export { default as ActivityBar } from './ActivityBarNew.js';
+export { ActivityBar } from './ActivityBarNew.js';
 
 // 하위 호환성을 위한 기본 export
-export { default } from './ActivityBarNew.js';
+export { ActivityBar as default } from './ActivityBarNew.js';
