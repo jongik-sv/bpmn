@@ -726,12 +726,12 @@ class VSCodeLayout {
                 console.log('🔧 Re-initializing BPMN editor in new container...');
                 
                 // 기존 에디터 파괴 후 새로 생성
-                if (editorInstance.modeler) {
-                    editorInstance.modeler.destroy();
+                if (editorInstance.editorCore && editorInstance.editorCore.modeler) {
+                    editorInstance.editorCore.modeler.destroy();
                 }
                 
                 // 새 컨테이너에 BPMN 에디터 초기화
-                await editorInstance.initializeModeler(bpmnContainer);
+                await editorInstance.editorCore.initializeModeler(bpmnContainer);
                 
                 console.log('✅ BPMN editor successfully integrated');
                 

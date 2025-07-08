@@ -285,5 +285,130 @@ initializeModeler(targetContainer = null) {
 
 ---
 
+## 🚨 해결된 오류 #3: Canvas element not found
+
+### 오류 상황
+```
+Error: Canvas element not found
+    at BpmnEditorCore.initializeModeler (BpmnEditorCore.js:175:15)
+    at BpmnEditorCore.openDiagram (BpmnEditorCore.js:220:16)
+    at BpmnEditor.openDiagram (BpmnEditor.js:148:29)
+    at VSCodeLayout.openBPMNDiagram (VSCodeLayout.js:1097:41)
+```
+
+### 원인 분석
+1. **잘못된 메서드 호출**: VSCodeLayout에서 `editorInstance.initializeModeler()` 호출
+   - BpmnEditor에는 `initializeModeler` 메서드가 없음
+   - 실제로는 `editorInstance.editorCore.initializeModeler()` 호출해야 함
+
+2. **잘못된 속성 접근**: `editorInstance.modeler` 접근
+   - BpmnEditor에는 `modeler` 속성이 없음
+   - 실제로는 `editorInstance.editorCore.modeler` 접근해야 함
+
+3. **초기화 순서 문제**: BpmnEditor가 초기화되지 않은 상태에서 `openDiagram` 호출
+
+### 수정 내용
+
+#### 1. VSCodeLayout.js의 integrateBPMNEditor 메서드 수정
+```javascript
+// 수정 전
+if (editorInstance.modeler) {
+    editorInstance.modeler.destroy();
+}
+await editorInstance.initializeModeler(bpmnContainer);
+
+// 수정 후
+if (editorInstance.editorCore && editorInstance.editorCore.modeler) {
+    editorInstance.editorCore.modeler.destroy();
+}
+await editorInstance.editorCore.initializeModeler(bpmnContainer);
+```
+
+#### 2. BpmnEditor.js의 openDiagram 메서드에 초기화 체크 추가
+```javascript
+// 수정 전
+async openDiagram(diagramData) {
+  await this.editorCore.openDiagram(diagramData);
+}
+
+// 수정 후
+async openDiagram(diagramData) {
+  // 초기화되지 않은 경우 먼저 초기화
+  if (!this.isInitialized) {
+    console.log('🔧 BpmnEditor not initialized, initializing now...');
+    await this.initializeWhenReady();
+    
+    if (!this.isInitialized) {
+      throw new Error('BpmnEditor 초기화에 실패했습니다.');
+    }
+  }
+  
+  await this.editorCore.openDiagram(diagramData);
+}
+```
+
+### 기술적 세부사항
+
+#### 모듈 계층 구조 이해
+```
+BpmnEditor (최상위 클래스)
+├── editorCore: BpmnEditorCore (핵심 BPMN 기능)
+│   ├── modeler: BpmnModeler (bpmn-js 인스턴스)
+│   ├── canvas: jQuery Element
+│   └── initializeModeler()
+├── collaborationHandler: BpmnCollaborationHandler
+├── autoSave: BpmnAutoSave
+└── uiIntegration: BpmnUIIntegration
+```
+
+#### DOM 컨테이너 생성 프로세스
+1. **VSCodeLayout**: `#bpmn-editor-container` 생성
+2. **BpmnEditorCore**: 컨테이너 내부에 `#js-canvas`와 `#js-properties-panel` 생성
+3. **BpmnModeler**: Canvas 요소에 BPMN 모델러 초기화
+
+### 추가 방어 코드
+
+#### 초기화 상태 검증 강화
+```javascript
+async openDiagram(diagramData) {
+  // 다단계 초기화 검증
+  if (!this.isInitialized) {
+    await this.initializeWhenReady();
+  }
+  
+  if (!this.editorCore || !this.editorCore.modeler) {
+    throw new Error('BPMN 에디터 컴포넌트가 완전히 초기화되지 않았습니다.');
+  }
+  
+  await this.editorCore.openDiagram(diagramData);
+}
+```
+
+### 학습 포인트
+
+#### 1. 모듈 아키텍처 이해
+- 계층적 모듈 구조에서 올바른 메서드/속성 접근 경로
+- 캡슐화된 객체의 내부 구조 파악
+- API 일관성 유지
+
+#### 2. 초기화 패턴
+- 지연 초기화(Lazy Initialization) 패턴
+- 초기화 상태 추적 및 검증
+- 조건부 초기화 로직
+
+#### 3. DOM 컨테이너 관리
+- 동적 컨테이너 생성 및 관리
+- 라이프사이클에 따른 리소스 정리
+- 컨테이너 계층 구조 설계
+
+## 📊 최종 수정 완료 상태
+- ✅ Explorer.js null 체크 추가 (오류 #1)
+- ✅ BpmnEditorCore.js 모델러 초기화 체크 추가 (오류 #2)  
+- ✅ VSCodeLayout.js 메서드 호출 경로 수정 (오류 #3)
+- ✅ BpmnEditor.js 자동 초기화 로직 추가 (오류 #3)
+- ✅ 모든 런타임 오류 해결 및 안정성 향상
+
+---
+
 *최종 수정 완료일: 2025년 7월 8일*
-*관련 파일: Explorer.js, VSCodeLayout.js, BpmnEditorCore.js*
+*관련 파일: Explorer.js, VSCodeLayout.js, BpmnEditorCore.js, BpmnEditor.js*

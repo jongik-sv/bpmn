@@ -21,14 +21,10 @@
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
-    "yahoo-finance-mcp",
-    "alpha-ventage-mcp",
     "supabase",
-    "fetch-mcp",
-    "naver-search-mcp",
-    "exa",
     "sequential-thinking",
-    "dart-mcp"
+    "google-calendar",
+    "Context7"
   ],
   "disabledMcpjsonServers": [],
   "disablePermissionsForProject": true
