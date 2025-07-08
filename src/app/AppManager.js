@@ -1,6 +1,6 @@
 import $ from 'jquery';
 import { getCurrentUser, onAuthStateChange } from '../lib/supabase.js';
-import { showSupabaseLoginModal } from '../components/SupabaseLoginModal.js';
+import { showSupabaseLoginModalNew } from '../components/auth/SupabaseLoginModalNew.js';
 import { dbManager, updateFolder } from '../lib/database.js';
 import { BpmnEditor } from '../editor/BpmnEditor.js';
 import { rbacManager, hasPermission, getUserRoleInProject } from '../lib/rbac.js';
@@ -235,7 +235,7 @@ export class AppManager {
   }
 
   showLoginModal(mode = 'login') {
-    showSupabaseLoginModal(mode, (user) => {
+    showSupabaseLoginModalNew(mode, (user) => {
       console.log('Login successful:', user);
       // 인증 상태 변경은 onAuthStateChange에서 처리됨
     });

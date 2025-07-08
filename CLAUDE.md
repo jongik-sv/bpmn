@@ -407,3 +407,4 @@ The project currently maintains two parallel implementations:
 - 스탭마다 끝날 때는 실행 가능한 상태로 만든다.
 - Both implementations should be kept in sync when adding new features
 - Use the legacy implementation for production, modern implementation for new development
+- 리펙토링을 실시한다.

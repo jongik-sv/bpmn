@@ -343,7 +343,19 @@ class Explorer {
         // Focus management
         treeView.addEventListener('focus', () => {
             if (!this.focusedItem) {
-                this.setFocusedItem(this.dataProvider.root);
+                const root = this.dataProvider.root;
+                if (root) {
+                    this.setFocusedItem(root);
+                } else {
+                    console.warn('Focus management: dataProvider.root is null, deferring focus setup');
+                    // 나중에 root가 설정되면 focus를 다시 시도
+                    setTimeout(() => {
+                        const newRoot = this.dataProvider.root;
+                        if (newRoot && !this.focusedItem) {
+                            this.setFocusedItem(newRoot);
+                        }
+                    }, 100);
+                }
             }
         });
     }
@@ -584,6 +596,13 @@ class Explorer {
         
         // Set focus to new item
         this.focusedItem = item;
+        
+        // Null check for item
+        if (!item || !item.id) {
+            console.warn('setFocusedItem: item is null or has no id', item);
+            return;
+        }
+        
         const element = this.container.querySelector(`[data-item-id="${item.id}"]`);
         if (element) {
             element.classList.add('focused');
