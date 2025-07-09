@@ -1,11 +1,11 @@
 import $ from 'jquery';
 import { getCurrentUser, onAuthStateChange } from '../lib/supabase.js';
-import { showSupabaseLoginModalNew } from '../components/auth/SupabaseLoginModalNew.js';
+import { showSupabaseLoginModalNew } from '../components/features/auth/SupabaseLoginModalNew.js';
 import { dbManager, updateFolder } from '../lib/database.js';
 import { BpmnEditor } from '../editor/BpmnEditor.js';
 import { rbacManager, hasPermission, getUserRoleInProject } from '../lib/rbac.js';
 import VSCodeLayout from '../components/VSCodeLayoutNew.js';
-import '../components/ProjectMembersModal.js';
+import '../components/modals/ProjectMembersModal.js';
 
 /**
  * 전체 애플리케이션 흐름을 관리하는 클래스

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
-import { signIn, signUp, signInWithGoogle, signInWithMagicLink, onAuthStateChange } from '../../lib/supabase.js';
-import { dbManager } from '../../lib/database.js';
+import { signIn, signUp, signInWithGoogle, signInWithMagicLink, onAuthStateChange } from '../../../lib/supabase.js';
+import { dbManager } from '../../../lib/database.js';
 
 /**
  * 인증 로직 처리 전담 클래스

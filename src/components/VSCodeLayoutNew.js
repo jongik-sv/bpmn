@@ -3,16 +3,16 @@
  * 레이아웃 관리, 이벤트 처리, 뷰 관리, BPMN 통합을 조합하여 완전한 VS Code 스타일 레이아웃 제공
  */
 
-import { VSCodeLayoutManager } from './vscode-layout/VSCodeLayoutManager.js';
-import { VSCodeEventHandler } from './vscode-layout/VSCodeEventHandler.js';
-import { VSCodeViewManager } from './vscode-layout/VSCodeViewManager.js';
-import { VSCodeBpmnIntegration } from './vscode-layout/VSCodeBpmnIntegration.js';
+import { VSCodeLayoutManager } from './ui/layout/vscode-layout/VSCodeLayoutManager.js';
+import { VSCodeEventHandler } from './ui/layout/vscode-layout/VSCodeEventHandler.js';
+import { VSCodeViewManager } from './ui/layout/vscode-layout/VSCodeViewManager.js';
+import { VSCodeBpmnIntegration } from './ui/layout/vscode-layout/VSCodeBpmnIntegration.js';
 
-import { ActivityBar } from './activity-bar/index.js';
+import { ActivityBar } from './ui/layout/activity-bar/index.js';
 import Explorer from './ExplorerNew.js';
-import { AccessibilityManager } from './accessibility/index.js';
-import { DragDropController } from './drag-drop/index.js';
-import { EditorHeader } from './editor-header/index.js';
+import { AccessibilityManager } from './common/accessibility/index.js';
+import { DragDropController } from './ui/interactions/drag-drop/index.js';
+import { EditorHeader } from './ui/layout/editor-header/index.js';
 
 class VSCodeLayout {
     constructor(container) {

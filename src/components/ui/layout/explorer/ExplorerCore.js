@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { TreeDataProvider } from '../tree-data/index.js';
+import { TreeDataProvider } from '../../interactions/tree-data/index.js';
 
 /**
  * Explorer 핵심 렌더링 및 트리 관리 클래스

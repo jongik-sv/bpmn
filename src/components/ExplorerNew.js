@@ -3,14 +3,14 @@
  * 5개의 전문화된 모듈을 조합하여 완전한 탐색기 기능 제공
  */
 
-import { ExplorerCore } from './explorer/ExplorerCore.js';
-import { ExplorerEventHandler } from './explorer/ExplorerEventHandler.js';
-import { ExplorerSearch } from './explorer/ExplorerSearch.js';
-import { ExplorerActions } from './explorer/ExplorerActions.js';
-import { ExplorerAccessibility } from './explorer/ExplorerAccessibility.js';
+import { ExplorerCore } from './ui/layout/explorer/ExplorerCore.js';
+import { ExplorerEventHandler } from './ui/layout/explorer/ExplorerEventHandler.js';
+import { ExplorerSearch } from './ui/layout/explorer/ExplorerSearch.js';
+import { ExplorerActions } from './ui/layout/explorer/ExplorerActions.js';
+import { ExplorerAccessibility } from './ui/layout/explorer/ExplorerAccessibility.js';
 
-import { TreeDataProvider } from './tree-data/index.js';
-import { ContextMenu } from './context-menu/index.js';
+import { TreeDataProvider } from './ui/interactions/tree-data/index.js';
+import { ContextMenu } from './ui/interactions/context-menu/index.js';
 
 class Explorer {
   constructor(container) {

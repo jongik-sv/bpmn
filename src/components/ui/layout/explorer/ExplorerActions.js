@@ -132,7 +132,7 @@ export class ExplorerActions extends EventEmitter {
       console.log('🔧 Creating diagram with folderId:', folderId);
       
       // 다이어그램 생성
-      const { dbManager } = await import('../../lib/database.js');
+      const { dbManager } = await import('../../../../lib/database.js');
       
       const diagramData = {
         name: fileName.trim(),
@@ -234,7 +234,7 @@ export class ExplorerActions extends EventEmitter {
       console.log('🔧 Creating folder with parentId:', parentId);
       
       // 폴더 생성
-      const { dbManager } = await import('../../lib/database.js');
+      const { dbManager } = await import('../../../../lib/database.js');
       
       const folderData = {
         name: folderName.trim(),
@@ -307,7 +307,7 @@ export class ExplorerActions extends EventEmitter {
         return;
       }
       
-      const { dbManager } = await import('../../lib/database.js');
+      const { dbManager } = await import('../../../../lib/database.js');
       let result;
       
       if (item.type === 'folder') {
@@ -373,7 +373,7 @@ export class ExplorerActions extends EventEmitter {
         return;
       }
       
-      const { dbManager } = await import('../../lib/database.js');
+      const { dbManager } = await import('../../../../lib/database.js');
       let result;
       
       if (item.type === 'folder') {
@@ -713,7 +713,7 @@ export class ExplorerActions extends EventEmitter {
         return;
       }
       
-      const { dbManager } = await import('../../lib/database.js');
+      const { dbManager } = await import('../../../../lib/database.js');
       
       // 새 부모 ID 확인
       const newParentId = newParent.folderId || null;

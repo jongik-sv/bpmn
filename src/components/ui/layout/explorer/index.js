@@ -10,7 +10,7 @@ export { ExplorerActions } from './ExplorerActions.js';
 export { ExplorerAccessibility } from './ExplorerAccessibility.js';
 
 // 통합 Explorer 클래스 (ExplorerNew.js에서 import)
-export { default as Explorer } from '../ExplorerNew.js';
+export { default as Explorer } from '../../../ExplorerNew.js';
 
 // 하위 호환성을 위한 기본 export
-export { default } from '../ExplorerNew.js';
+export { default } from '../../../ExplorerNew.js';

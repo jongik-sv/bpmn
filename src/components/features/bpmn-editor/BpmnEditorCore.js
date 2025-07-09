@@ -8,7 +8,7 @@ import {
   BpmnPropertiesProviderModule 
 } from 'bpmn-js-properties-panel';
 
-import newDiagramXML from '../../assets/newDiagram.bpmn';
+import newDiagramXML from '../../../assets/newDiagram.bpmn';
 
 /**
  * BPMN 에디터 핵심 기능만 담당하는 클래스

@@ -40,25 +40,34 @@ app/
 - 전역 상태 관리 (인증, 프로젝트 상태 등)
 - 모듈 간 조율 및 통신
 
-### 🎨 /components - UI 컴포넌트 (모듈화 완료)
+### 🎨 /components - UI 컴포넌트 (계층 구조 완료)
 **책임**: 재사용 가능한 UI 컴포넌트 제공
 
 ```
 components/
-├── accessibility/          # 접근성 관리
-├── activity-bar/          # 활동 바 (VS Code 스타일)
-├── auth/                  # 인증 관련 컴포넌트
-├── bpmn-editor/          # BPMN 에디터 컴포넌트
-├── context-menu/         # 컨텍스트 메뉴
-├── drag-drop/            # 드래그 앤 드롭 컨트롤러
-├── editor-header/        # 에디터 헤더
-├── explorer/             # 파일 탐색기
-├── project-manager/      # 프로젝트 관리자
-├── tree-data/            # 트리 데이터 제공자
-├── vscode-layout/        # VS Code 레이아웃
+├── ui/                    # UI 컴포넌트
+│   ├── layout/           # 레이아웃 컴포넌트
+│   │   ├── vscode-layout/    # VS Code 메인 레이아웃
+│   │   ├── activity-bar/     # 활동 바
+│   │   ├── explorer/         # 파일 탐색기
+│   │   └── editor-header/    # 에디터 헤더
+│   └── interactions/     # UI 인터랙션
+│       ├── context-menu/     # 컨텍스트 메뉴
+│       ├── drag-drop/        # 드래그 앤 드롭
+│       └── tree-data/        # 트리 데이터 관리
+├── features/             # 기능별 컴포넌트
+│   ├── bpmn-editor/          # BPMN 에디터
+│   ├── project-manager/      # 프로젝트 관리자
+│   └── auth/                 # 인증 관련
+├── common/               # 공통 유틸리티
+│   └── accessibility/        # 접근성 관리
+├── modals/               # 모달 컴포넌트
+│   ├── ProjectMembersModal.js
+│   └── SupabaseLoginModal.js
+├── ExplorerNew.js        # 통합 Explorer 클래스
+├── VSCodeLayoutNew.js    # 통합 VSCode Layout 클래스
 ├── index.js              # 전체 컴포넌트 export
-├── MIGRATION_GUIDE.md    # 마이그레이션 가이드
-└── 레거시 파일들...
+└── MIGRATION_GUIDE.md    # 마이그레이션 가이드
 ```
 
 **모듈 패턴**:
@@ -201,39 +210,48 @@ class ComponentNew extends EventEmitter {
 
 ## 📊 마이그레이션 현황
 
-### ✅ 완료된 모듈화
-- **ActivityBar**: `activity-bar/` 폴더
-- **ContextMenu**: `context-menu/` 폴더
-- **DragDropController**: `drag-drop/` 폴더
-- **EditorHeader**: `editor-header/` 폴더
-- **ProjectManager**: `project-manager/` 폴더
-- **TreeDataProvider**: `tree-data/` 폴더
-- **AccessibilityManager**: `accessibility/` 폴더
+### ✅ 완료된 계층 구조 모듈화
 
-### 🔄 기존 모듈화 (이전 작업)
-- **BpmnEditor**: `bpmn-editor/` 폴더
-- **Explorer**: `explorer/` 폴더
-- **VSCodeLayout**: `vscode-layout/` 폴더
-- **Auth**: `auth/` 폴더
+#### UI 레이아웃 컴포넌트
+- **VSCodeLayout**: `ui/layout/vscode-layout/` 폴더
+- **ActivityBar**: `ui/layout/activity-bar/` 폴더
+- **Explorer**: `ui/layout/explorer/` 폴더
+- **EditorHeader**: `ui/layout/editor-header/` 폴더
+
+#### UI 인터랙션 컴포넌트
+- **ContextMenu**: `ui/interactions/context-menu/` 폴더
+- **DragDropController**: `ui/interactions/drag-drop/` 폴더
+- **TreeDataProvider**: `ui/interactions/tree-data/` 폴더
+
+#### 기능별 컴포넌트
+- **BpmnEditor**: `features/bpmn-editor/` 폴더
+- **ProjectManager**: `features/project-manager/` 폴더
+- **Auth**: `features/auth/` 폴더
+
+#### 공통 유틸리티
+- **AccessibilityManager**: `common/accessibility/` 폴더
+
+#### 모달 컴포넌트
+- **ProjectMembersModal**: `modals/ProjectMembersModal.js`
+- **SupabaseLoginModal**: `modals/SupabaseLoginModal.js`
+
+#### 기타 모듈화
 - **Database**: `lib/database/` 폴더
 - **AppManager**: `app/managers/` 폴더
 
-### 📋 남은 레거시 파일들
+### 📋 통합 클래스 파일들
 ```
 components/
-├── Explorer.js                  # → explorer/ 폴더로 이미 모듈화됨
-├── ExplorerNew.js              # → 통합 클래스로 사용 중
-├── ProjectMembersModal.js      # → 독립적인 모달 컴포넌트
-├── SupabaseLoginModal.js       # → auth/ 폴더로 이미 모듈화됨
-├── VSCodeLayout.js             # → vscode-layout/ 폴더로 이미 모듈화됨
-└── VSCodeLayoutNew.js          # → 통합 클래스로 사용 중
+├── ExplorerNew.js              # → ui/layout/explorer/ 모듈들을 통합
+└── VSCodeLayoutNew.js          # → ui/layout/vscode-layout/ 모듈들을 통합
 ```
 
 ## 🚀 향후 개발 방향
 
-### 1. 추가 모듈화
-- `ProjectMembersModal.js` 모듈화 검토
+### 1. 추가 최적화
+- 통합 클래스들의 성능 최적화
 - 공통 유틸리티 함수 분리
+- 컴포넌트 간 의존성 최소화
 
 ### 2. 성능 최적화
 - 레이지 로딩 구현
@@ -266,4 +284,4 @@ components/
 ---
 
 *문서 생성일: 2025년 7월 8일*
-*마지막 업데이트: 모듈화 작업 완료 후*
+*마지막 업데이트: 계층 구조 재정리 완료 후*

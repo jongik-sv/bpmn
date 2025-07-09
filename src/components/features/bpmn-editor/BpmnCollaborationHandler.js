@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { BpmnCollaborationModule } from '../../collaboration/BpmnCollaborationModule.js';
+import { BpmnCollaborationModule } from '../../../collaboration/BpmnCollaborationModule.js';
 
 /**
  * BPMN 에디터의 실시간 협업 기능을 담당하는 클래스

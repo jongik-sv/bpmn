@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
-import { BpmnEditorCore } from '../components/bpmn-editor/BpmnEditorCore.js';
-import { BpmnCollaborationHandler } from '../components/bpmn-editor/BpmnCollaborationHandler.js';
-import { BpmnAutoSave } from '../components/bpmn-editor/BpmnAutoSave.js';
-import { BpmnUIIntegration } from '../components/bpmn-editor/BpmnUIIntegration.js';
+import { BpmnEditorCore } from '../components/features/bpmn-editor/BpmnEditorCore.js';
+import { BpmnCollaborationHandler } from '../components/features/bpmn-editor/BpmnCollaborationHandler.js';
+import { BpmnAutoSave } from '../components/features/bpmn-editor/BpmnAutoSave.js';
+import { BpmnUIIntegration } from '../components/features/bpmn-editor/BpmnUIIntegration.js';
 
 /**
  * BPMN 에디터 메인 클래스 - 모든 기능을 통합하여 관리

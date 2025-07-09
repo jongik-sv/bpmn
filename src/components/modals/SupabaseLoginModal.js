@@ -6,7 +6,7 @@ import {
   showSupabaseLoginModalNew, 
   hideSupabaseLoginModalNew,
   getSupabaseLoginModalInstance
-} from './auth/SupabaseLoginModalNew.js';
+} from '../features/auth/SupabaseLoginModalNew.js';
 
 /**
  * @deprecated 레거시 호환성을 위한 래퍼 클래스
