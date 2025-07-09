@@ -432,9 +432,14 @@ export class BpmnCollaborationModule {
    */
   getCurrentDiagramId() {
     if (window.appManager && window.appManager.bpmnEditor && window.appManager.bpmnEditor.currentDiagram) {
-      return window.appManager.bpmnEditor.currentDiagram.id || window.appManager.bpmnEditor.currentDiagram.diagramId;
+      const diagram = window.appManager.bpmnEditor.currentDiagram;
+      const id = diagram.id || diagram.diagramId;
+      // 유효한 UUID 형식인지 확인 (간단한 체크)
+      if (id && id !== 'new' && id.length > 10) {
+        return id;
+      }
     }
-    return 'unknown-diagram';
+    return null; // unknown-diagram 대신 null 반환
   }
 
   /**
@@ -858,7 +863,9 @@ export class BpmnCollaborationModule {
         // 이미 초기화된 경우 룸만 변경 (재연결 없이)
         const success = await collaborationManager.changeRoom(newRoomId, diagramId);
         if (!success) {
-          throw new Error('룸 변경 실패');
+          console.warn('⚠️ 협업 서버 연결이 없어 룸 변경을 건너뜁니다. 에디터는 로컬 모드로 작동합니다.');
+          // 연결되지 않은 상태에서는 오류를 던지지 않고 계속 진행
+          return;
         }
         
         // 사용자 정보가 제공된 경우 업데이트

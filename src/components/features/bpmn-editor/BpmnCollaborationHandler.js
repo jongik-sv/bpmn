@@ -26,9 +26,26 @@ export class BpmnCollaborationHandler extends EventEmitter {
     });
     
     // 다이어그램 로드 시 협업 룸 업데이트
-    this.editorCore.on('diagramLoaded', (diagram) => {
+    this.editorCore.on('diagramLoaded', async (diagram) => {
       this.currentDiagram = diagram;
-      this.updateCollaborationRoom();
+      
+      // 협업이 아직 초기화되지 않았고 사용자가 있다면 초기화
+      if (!this.collaborationModule && this.currentUser && this.currentProject) {
+        try {
+          await this.initializeCollaboration(this.currentUser);
+        } catch (error) {
+          console.warn('⚠️ 다이어그램 로드 후 협업 초기화 실패, 에디터는 계속 작동합니다:', error);
+          this.emit('collaborationError', error);
+        }
+      } else if (this.collaborationModule) {
+        // 이미 초기화되어 있다면 룸만 업데이트
+        try {
+          await this.updateCollaborationRoom();
+        } catch (error) {
+          console.warn('⚠️ 다이어그램 로드 후 협업 룸 업데이트 실패, 에디터는 계속 작동합니다:', error);
+          this.emit('collaborationError', error);
+        }
+      }
     });
   }
 
@@ -38,10 +55,8 @@ export class BpmnCollaborationHandler extends EventEmitter {
   async setUser(user) {
     this.currentUser = user;
 
-    // Initialize collaboration only if the modeler has been initialized
-    if (user && this.editorCore.getModeler() && !this.collaborationModule) {
-      await this.initializeCollaboration(user);
-    } else if (!user && this.collaborationModule) {
+    // Don't initialize collaboration immediately - wait for diagram to load
+    if (!user && this.collaborationModule) {
       this.disconnect();
     }
     
@@ -56,7 +71,11 @@ export class BpmnCollaborationHandler extends EventEmitter {
     
     // 협업 룸 ID 업데이트 (문서별 고유 룸)
     if (this.collaborationModule && project && this.currentDiagram) {
-      await this.updateCollaborationRoom();
+      try {
+        await this.updateCollaborationRoom();
+      } catch (error) {
+        console.warn('⚠️ setProject에서 협업 룸 업데이트 실패, 에디터는 계속 작동합니다:', error);
+      }
     }
     
     this.emit('projectChanged', project);
@@ -150,9 +169,9 @@ export class BpmnCollaborationHandler extends EventEmitter {
         }
       });
       
-      // 룸 ID와 다이어그램 ID 생성 (문서별 고유 룸)
-      const roomId = this.currentDiagram 
-        ? (this.currentDiagram.id || this.currentDiagram.diagramId)
+      // 룸 ID와 다이어그램 ID 생성 (초기화 시에는 프로젝트 기본 룸 사용)
+      const roomId = this.currentProject 
+        ? `project-${this.currentProject.id}`
         : 'demo-room';
       const diagramId = this.currentDiagram ? (this.currentDiagram.id || this.currentDiagram.diagramId) : null;
       
@@ -198,7 +217,9 @@ export class BpmnCollaborationHandler extends EventEmitter {
         console.log('✅ Collaboration room updated successfully after diagram load');
       } catch (error) {
         console.error('❌ Failed to update collaboration room after diagram load:', error);
-        this.emit('error', error);
+        console.warn('⚠️ 협업 기능이 비활성화되었지만 에디터는 정상적으로 작동합니다.');
+        this.emit('collaborationError', error);
+        // 에러를 다시 던지지 않음 - 에디터는 계속 작동해야 함
       }
     }
   }

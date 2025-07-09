@@ -56,6 +56,10 @@ module.exports = {
       patterns: [
         { from: './src/assets', to: 'assets', noErrorOnMissing: true }
       ]
+    }),
+    new webpack.ProvidePlugin({
+      $: 'jquery',
+      jQuery: 'jquery'
     })
   ],
   devServer: {

@@ -1,4 +1,7 @@
 import { EventEmitter } from 'events';
+import { commandManager } from '../../../../lib/CommandManager.js';
+import { DiagramCommandFactory } from '../../../../commands/DiagramCommands.js';
+import { FolderCommandFactory } from '../../../../commands/FolderCommands.js';
 
 /**
  * VS Code 레이아웃과 BPMN 에디터의 통합을 담당하는 클래스
@@ -53,6 +56,16 @@ export class VSCodeBpmnIntegration extends EventEmitter {
         await editorInstance.moveToContainer('#bpmn-editor-container');
       }
 
+      // 에디터 이벤트 리스너 설정
+      if (editorInstance.editorCore) {
+        editorInstance.editorCore.on('diagramClosed', (closedDiagram) => {
+          console.log('📄 Diagram closed, showing welcome message');
+          if (this.layoutManager) {
+            this.layoutManager.showWelcomeMessage();
+          }
+        });
+      }
+      
       console.log('✅ BPMN editor successfully integrated');
       this.emit('editorIntegrated', editorInstance);
       
@@ -97,6 +110,10 @@ export class VSCodeBpmnIntegration extends EventEmitter {
     if (existingContainer) {
       existingContainer.remove();
     }
+
+    // 기존 플레이스홀더 제거
+    const existingPlaceholders = editorContent.querySelectorAll('#bpmn-editor-placeholder');
+    existingPlaceholders.forEach(p => p.remove());
   }
 
   /**
@@ -142,6 +159,12 @@ export class VSCodeBpmnIntegration extends EventEmitter {
 
       this.currentDiagram = diagram;
       console.log('✅ BPMN diagram opened successfully:', diagram.name);
+      
+      // Welcome 메시지 숨기고 BPMN 에디터 표시
+      if (this.layoutManager) {
+        this.layoutManager.showBPMNEditor();
+        console.log('📄 BPMN editor displayed, welcome message hidden');
+      }
       
       this.emit('diagramOpened', diagram);
       return true;
@@ -373,17 +396,15 @@ export class VSCodeBpmnIntegration extends EventEmitter {
         return false;
       }
 
-      // 데이터베이스에 폴더 생성
+      // 폴더 생성 - Command Pattern 사용
       if (window.dbManager) {
-        const result = await window.dbManager.createFolder({
+        const createCommand = FolderCommandFactory.createFolder({
           name: folderName.trim(),
           project_id: appManager.currentProject.id,
           created_by: appManager.currentUser?.id
         });
-
-        if (result.error) {
-          throw new Error(result.error);
-        }
+        
+        const result = await commandManager.executeCommand(createCommand);
 
         // 탐색기 새로고침
         if (window.vscodeLayout && window.vscodeLayout.explorer) {
@@ -391,7 +412,7 @@ export class VSCodeBpmnIntegration extends EventEmitter {
         }
 
         console.log('✅ Folder created successfully:', folderName);
-        this.emit('folderCreated', result.data);
+        this.emit('folderCreated', result);
         return true;
       }
 
@@ -420,9 +441,9 @@ export class VSCodeBpmnIntegration extends EventEmitter {
         return false;
       }
 
-      // 데이터베이스에 다이어그램 생성
+      // 다이어그램 생성 - Command Pattern 사용
       if (window.dbManager) {
-        const result = await window.dbManager.createDiagram({
+        const createCommand = DiagramCommandFactory.createDiagram({
           name: diagramName.trim(),
           project_id: appManager.currentProject.id,
           created_by: appManager.currentUser?.id,
@@ -440,10 +461,8 @@ export class VSCodeBpmnIntegration extends EventEmitter {
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>`
         });
-
-        if (result.error) {
-          throw new Error(result.error);
-        }
+        
+        const result = await commandManager.executeCommand(createCommand);
 
         // 탐색기 새로고침
         if (window.vscodeLayout && window.vscodeLayout.explorer) {
@@ -451,7 +470,7 @@ export class VSCodeBpmnIntegration extends EventEmitter {
         }
 
         console.log('✅ Diagram created successfully:', diagramName);
-        this.emit('diagramCreated', result.data);
+        this.emit('diagramCreated', result);
         return true;
       }
 

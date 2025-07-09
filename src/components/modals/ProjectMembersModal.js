@@ -1,6 +1,6 @@
 import $ from 'jquery';
-import { dbManager } from '../../lib/database.js';
 import { rbacManager, hasPermission, canRemoveMember, canChangeRole, getAssignableRoles, getRoleDisplayName, getRoleDescription, getRoleColor, getRoleIcon } from '../../lib/rbac.js';
+import { projectService } from '../../services/ProjectService.js';
 
 /**
  * 프로젝트 멤버 관리 모달

@@ -255,6 +255,7 @@ body {
   flex: 1;
   display: flex;
   overflow: hidden;
+  height: calc(100vh - 60px); /* Account for dashboard header height */
 }
 
 .sidebar {
@@ -289,6 +290,7 @@ body {
   padding: var(--spacing-6);
   overflow-y: auto;
   background: var(--bg-primary);
+  height: 100%; /* Ensure full height usage */
 }
 
 .projects-grid {
@@ -771,6 +773,45 @@ body {
   max-width: 500px;
   width: 90%;
   border: var(--border-width) solid var(--border-color);
+}
+
+/* Welcome 메시지 스타일 */
+.welcome-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+
+.welcome-icon {
+  color: var(--primary-color);
+  margin-bottom: var(--spacing-2);
+}
+
+.welcome-content h3 {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--gray-900);
+  margin: 0;
+}
+
+.welcome-content p {
+  color: var(--gray-600);
+  line-height: 1.6;
+  margin: 0;
+  max-width: 400px;
+}
+
+.welcome-actions {
+  display: flex;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: var(--spacing-2);
+}
+
+.welcome-actions .btn {
+  min-width: 140px;
 }
 
 .message.intro {

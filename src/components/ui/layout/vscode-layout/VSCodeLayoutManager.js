@@ -31,6 +31,7 @@ export class VSCodeLayoutManager extends EventEmitter {
     
     this.createLayout();
     this.setupSidebarResize();
+    this.setupWelcomeActions();
     this.loadLayoutState();
   }
 
@@ -83,11 +84,11 @@ export class VSCodeLayoutManager extends EventEmitter {
                   왼쪽 탐색기에서 BPMN 다이어그램을 클릭하여 편집을 시작하세요.
                 </p>
                 <div style="display: flex; gap: 24px; justify-content: center; align-items: center; margin-top: 32px;">
-                  <div style="text-align: center; font-size: 14px; color: #888888;">
+                  <div class="welcome-action-btn" data-action="create-folder" style="text-align: center; font-size: 14px; color: #888888; cursor: pointer; padding: 16px; border-radius: 8px; transition: all 0.2s; border: 1px solid transparent;">
                     <div style="font-size: 28px; margin-bottom: 8px;">📁</div>
                     <span>새 폴더 만들기</span>
                   </div>
-                  <div style="text-align: center; font-size: 14px; color: #888888;">
+                  <div class="welcome-action-btn" data-action="create-diagram" style="text-align: center; font-size: 14px; color: #888888; cursor: pointer; padding: 16px; border-radius: 8px; transition: all 0.2s; border: 1px solid transparent;">
                     <div style="font-size: 28px; margin-bottom: 8px;">📄</div>
                     <span>새 다이어그램 만들기</span>
                   </div>
@@ -124,6 +125,51 @@ export class VSCodeLayoutManager extends EventEmitter {
       if (!element) {
         console.warn(`Layout element not found: ${key}`);
       }
+    }
+  }
+
+  /**
+   * Welcome 메시지 액션 설정
+   */
+  setupWelcomeActions() {
+    // Welcome 액션 버튼에 이벤트 리스너 추가
+    const actionButtons = this.container.querySelectorAll('.welcome-action-btn');
+    actionButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        const action = e.currentTarget.dataset.action;
+        this.handleWelcomeAction(action);
+      });
+      
+      // 호버 효과
+      button.addEventListener('mouseenter', (e) => {
+        e.currentTarget.style.backgroundColor = '#333333';
+        e.currentTarget.style.borderColor = '#555555';
+        e.currentTarget.style.color = '#ffffff';
+      });
+      
+      button.addEventListener('mouseleave', (e) => {
+        e.currentTarget.style.backgroundColor = 'transparent';
+        e.currentTarget.style.borderColor = 'transparent';
+        e.currentTarget.style.color = '#888888';
+      });
+    });
+  }
+
+  /**
+   * Welcome 액션 처리
+   */
+  handleWelcomeAction(action) {
+    switch (action) {
+      case 'create-folder':
+        if (window.appManager) {
+          window.appManager.createNewFolder();
+        }
+        break;
+      case 'create-diagram':
+        if (window.appManager) {
+          window.appManager.createNewDiagram();
+        }
+        break;
     }
   }
 
@@ -361,6 +407,48 @@ export class VSCodeLayoutManager extends EventEmitter {
 
   getEditorHeaderContainer() {
     return this.elements.editorHeaderContainer;
+  }
+
+  /**
+   * Welcome 메시지 표시
+   */
+  showWelcomeMessage() {
+    const welcomeMessage = this.container.querySelector('.editor-welcome-message');
+    if (welcomeMessage) {
+      welcomeMessage.style.display = 'flex';
+    }
+    
+    // BPMN 에디터 숨기기
+    const bpmnEditor = this.container.querySelector('#bpmn-editor-container');
+    if (bpmnEditor) {
+      bpmnEditor.style.display = 'none';
+    }
+    
+    // 에디터 헤더 숨기기
+    if (this.elements.editorHeaderContainer) {
+      this.elements.editorHeaderContainer.style.display = 'none';
+    }
+  }
+
+  /**
+   * BPMN 에디터 표시
+   */
+  showBPMNEditor() {
+    const welcomeMessage = this.container.querySelector('.editor-welcome-message');
+    if (welcomeMessage) {
+      welcomeMessage.style.display = 'none';
+    }
+    
+    // BPMN 에디터 표시
+    const bpmnEditor = this.container.querySelector('#bpmn-editor-container');
+    if (bpmnEditor) {
+      bpmnEditor.style.display = 'flex';
+    }
+    
+    // 에디터 헤더 표시
+    if (this.elements.editorHeaderContainer) {
+      this.elements.editorHeaderContainer.style.display = 'block';
+    }
   }
 
   /**

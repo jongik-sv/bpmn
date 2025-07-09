@@ -129,11 +129,15 @@ export class BpmnAutoSave extends EventEmitter {
       // 다이어그램 ID 결정 (id 또는 diagramId 사용)
       const diagramId = currentDiagram.id || currentDiagram.diagramId;
       
-      if (!diagramId) {
-        console.warn('No valid diagram ID found for auto-save:', currentDiagram);
+      if (!diagramId || diagramId === 'new' || diagramId === 'unknown-diagram') {
+        console.warn('No valid diagram ID found for auto-save:', { 
+          id: diagramId, 
+          diagramName: currentDiagram.name,
+          reason: !diagramId ? 'no_id' : 'invalid_id'
+        });
         this.saveToLocalStorage(xml);
         this.showAutoSaveStatus('로컬 저장됨');
-        this.emit('autoSaveToLocal', { xml, reason: 'no_diagram_id' });
+        this.emit('autoSaveToLocal', { xml, reason: 'no_valid_diagram_id' });
         return;
       }
       

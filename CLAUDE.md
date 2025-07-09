@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a **BPMN Collaborative Editor** project that aims to build a real-time collaborative web application for editing BPMN diagrams, similar to Google Docs but for business process modeling.
 
-**Current Status**: Complete technical specifications with development-ready design documents. Ready to begin implementation of MVP.
+**Current Status**: Fully implemented MVP with advanced architectural patterns. Production-ready collaborative BPMN editor with modern design patterns.
 
 ## Architecture & Technology Stack
 
@@ -133,6 +133,12 @@ npm run db:test
 
 # Run WebSocket server standalone
 node websocket-server.js
+
+# Test service layer components
+node -e "import('./src/services/DiagramService.js').then(m => console.log('DiagramService loaded'))"
+
+# Test command pattern
+node -e "import('./src/lib/CommandManager.js').then(m => console.log('CommandManager loaded'))"
 ```
 
 **Database Commands (Supabase)**
@@ -225,6 +231,9 @@ bpmn-editor/
 - ✅ Multi-page application architecture
 - ✅ Korean enterprise software UI design
 - ✅ Database schema with local storage fallback
+- ✅ Service Layer architecture with separation of concerns
+- ✅ Event-driven architecture with EventBus
+- ✅ Command Pattern with undo/redo functionality
 
 ### Phase 3: Production Ready ⏳ IN PROGRESS
 - ⏳ Role-based access control
@@ -233,6 +242,8 @@ bpmn-editor/
 - ⏳ Performance optimization for large diagrams
 - ⏳ Comprehensive testing suite
 - ⏳ Production deployment pipeline
+- ⏳ Advanced UI controls (undo/redo buttons integration)
+- ⏳ Command history management UI
 
 ## Technical Considerations
 
@@ -350,7 +361,7 @@ Core collaboration features have been successfully implemented with a modern mul
 - **Project Management**: Full CRUD operations with local storage fallback
 - **BPMN Editor**: Fully integrated modeler with properties panel and export features
 
-**Current Status**: Ready for production feature development (Phase 3)
+**Current Status**: Advanced architectural patterns implemented. Ready for production feature development (Phase 3) with modern design patterns.
 
 ## Development Architecture Notes
 
@@ -377,6 +388,25 @@ The project currently maintains two parallel implementations:
 - **CollaborationManager.js**: Yjs CRDT integration for real-time sync
 - **BpmnCollaborationModule.js**: BPMN-specific collaboration logic
 
+#### Service Layer
+- **DiagramService.js**: Business logic for diagram operations
+- **ProjectService.js**: Business logic for project operations
+- **FolderService.js**: Business logic for folder operations
+
+#### Command Pattern
+- **CommandManager.js**: Central command execution and history management
+- **DiagramCommands.js**: Diagram-related command implementations
+- **ProjectCommands.js**: Project-related command implementations
+- **FolderCommands.js**: Folder-related command implementations
+
+#### Event System
+- **EventBus.js**: Global event communication system
+- **Router.js**: Page routing and navigation management
+
+#### UI Components
+- **UndoRedoButtons.js**: Undo/redo functionality UI
+- **ExplorerActions.js**: File operations with command pattern integration
+
 ### WebSocket Server
 - **websocket-server.js**: Enhanced WebSocket server with intelligent document synchronization
 - **test-ws.js**: Testing utility for WebSocket connections
@@ -401,6 +431,9 @@ The project currently maintains two parallel implementations:
 - **Supabase**: Primary database with PostgreSQL, Auth, and real-time features
 - **Local Storage Fallback**: Graceful degradation when Supabase unavailable
 - **RBAC**: Role-based access control with permission system
+- **Service Layer**: Abstracted database operations through dedicated services
+- **Event-Driven Updates**: Real-time UI updates through EventBus
+- **Command Pattern**: Undo/redo functionality for all data operations
 
 ## Development Rules
 - 개발이 끝나면 꼭 todo.md 파일을 업데이트 한다.
@@ -408,6 +441,9 @@ The project currently maintains two parallel implementations:
 - Both implementations should be kept in sync when adding new features
 - Use the legacy implementation for production, modern implementation for new development
 - 리펙토링을 실시한다.
+- **Service Layer 사용**: 모든 데이터 작업은 서비스 레이어를 통해 수행
+- **Command Pattern 활용**: 사용자 액션은 Command 객체로 구현하여 undo/redo 지원
+- **EventBus 통신**: 컴포넌트 간 통신은 EventBus를 통해 수행
 
 ## 🏗️ 모듈화 개발 가이드라인 (MANDATORY)
 
@@ -480,6 +516,13 @@ class ComponentNew extends EventEmitter {
 - Database → `lib/database/`
 - AppManager → `app/managers/`
 
+**✅ 완료된 아키텍처 패턴:**
+- Service Layer → `services/`
+- Command Pattern → `commands/`
+- Event System → `lib/EventBus.js`
+- Router Pattern → `app/Router.js`
+- UI Components → `components/ui/`
+
 ### 🚫 금지사항
 1. **순환 참조 생성 절대 금지**
 2. **직접적인 DOM 조작 최소화**
@@ -493,8 +536,96 @@ class ComponentNew extends EventEmitter {
 3. **에러 처리 및 로깅 필수**
 4. **성능 고려한 코드 작성**
 5. **새 컴포넌트 개발 시 모듈화 패턴 필수 적용**
+6. **Service Layer 통한 데이터 작업 처리**
+7. **Command Pattern 기반 사용자 액션 구현**
+8. **EventBus를 통한 컴포넌트 간 통신**
 
 ### 📋 참고 문서
 - **SRC_STRUCTURE_GUIDE.md**: 프로젝트 구조 및 상세 가이드
 - **src/components/MIGRATION_GUIDE.md**: 마이그레이션 가이드
 - **REFACTORING-SUMMARY.md**: 리팩토링 완료 보고서
+- **CODE_ANALYSIS_REPORT.md**: 코드 분석 및 아키텍처 개선 보고서
+
+## 🏗️ 현대적 아키텍처 패턴 (필수 준수)
+
+### 🎯 Service Layer Pattern
+모든 비즈니스 로직은 서비스 레이어를 통해 처리합니다:
+
+```javascript
+// 서비스 레이어 사용 예시
+import { diagramService } from '../services/DiagramService.js';
+import { commandManager } from '../lib/CommandManager.js';
+import { DiagramCommandFactory } from '../commands/DiagramCommands.js';
+
+// 잘못된 방식: 직접 데이터베이스 접근
+// const result = await dbManager.createDiagram(data);
+
+// 올바른 방식: Command Pattern + Service Layer
+const createCommand = DiagramCommandFactory.createDiagram(data);
+const result = await commandManager.executeCommand(createCommand);
+```
+
+### 🔄 Event-Driven Architecture
+컴포넌트 간 통신은 EventBus를 통해 수행합니다:
+
+```javascript
+import { eventBus } from '../lib/EventBus.js';
+
+// 이벤트 발생
+eventBus.emit(eventBus.EVENTS.DIAGRAM_CREATED, { diagram: newDiagram });
+
+// 이벤트 리스닝
+eventBus.on(eventBus.EVENTS.DIAGRAM_CREATED, (data) => {
+  this.refreshUI(data.diagram);
+});
+```
+
+### ⚡ Command Pattern Implementation
+모든 사용자 액션은 Command 객체로 구현하여 undo/redo를 지원합니다:
+
+```javascript
+// Command 생성 및 실행
+const deleteCommand = DiagramCommandFactory.deleteDiagram(diagramId);
+await commandManager.executeCommand(deleteCommand);
+
+// 실행 취소
+await commandManager.undo();
+
+// 다시 실행
+await commandManager.redo();
+```
+
+### 📁 핵심 아키텍처 구조
+
+#### Service Layer
+- **ProjectService**: 프로젝트 관련 비즈니스 로직
+- **DiagramService**: 다이어그램 관련 비즈니스 로직
+- **FolderService**: 폴더 관련 비즈니스 로직
+
+#### Command Pattern
+- **CommandManager**: 명령 실행, 취소, 재실행 관리
+- **DiagramCommands**: 다이어그램 관련 명령들
+- **ProjectCommands**: 프로젝트 관련 명령들
+- **FolderCommands**: 폴더 관련 명령들
+
+#### Event System
+- **EventBus**: 전역 이벤트 통신 관리
+- **Router**: 페이지 라우팅 및 네비게이션
+
+#### UI Components
+- **UndoRedoButtons**: 실행 취소/다시 실행 UI
+- **ExplorerActions**: Command Pattern 기반 파일 작업
+- **VSCodeBpmnIntegration**: BPMN 에디터 통합
+
+### 🚫 금지사항 (아키텍처 위반)
+1. **직접 데이터베이스 접근**: 항상 서비스 레이어 사용
+2. **직접 서비스 호출**: Command Pattern을 통한 간접 호출
+3. **전역 상태 변경**: EventBus를 통한 상태 변경 알림
+4. **하드코딩된 액션**: 모든 사용자 액션은 Command 객체로 구현
+
+### ✅ 개발 시 필수 체크리스트
+1. **새로운 데이터 작업**: Service Layer에 메서드 추가
+2. **사용자 액션 추가**: Command 클래스 생성
+3. **컴포넌트 간 통신**: EventBus 이벤트 정의
+4. **UI 업데이트**: 이벤트 기반 반응형 업데이트
+5. **에러 처리**: 서비스 레이어에서 통일된 에러 처리

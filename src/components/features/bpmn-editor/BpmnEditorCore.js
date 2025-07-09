@@ -198,7 +198,9 @@ export class BpmnEditorCore extends EventEmitter {
    */
   async openDiagram(diagramData) {
     try {
+      console.log('🔍 Opening diagram with data:', diagramData);
       const diagramId = (diagramData && diagramData.id) || (diagramData && diagramData.diagramId);
+      console.log('🔍 Extracted diagram ID:', diagramId);
       if (!diagramId) {
         throw new Error('다이어그램 ID가 없습니다.');
       }
@@ -243,6 +245,12 @@ export class BpmnEditorCore extends EventEmitter {
         content: documentData.xml,
         name: documentData.name
       };
+      
+      console.log('✅ Current diagram set:', {
+        id: this.currentDiagram.id,
+        name: this.currentDiagram.name,
+        hasContent: !!this.currentDiagram.content
+      });
       
       // 서버에서 받은 XML과 현재 로컬 XML 비교
       const serverXml = documentData.xml || newDiagramXML;
@@ -412,7 +420,15 @@ export class BpmnEditorCore extends EventEmitter {
     }
   }
 
-  // 파일 드래그앤드롭 기능은 온라인 전용으로 제거됨
+  /**
+   * 파일 드래그앤드롭 설정
+   * 온라인 전용으로 제거됨 - 현재는 빈 메서드로 유지
+   */
+  setupFileDrop() {
+    // 파일 드래그앤드롭 기능은 온라인 전용으로 제거됨
+    // 호환성을 위해 빈 메서드로 유지
+    console.log('📄 File drop setup skipped (online-only feature)');
+  }
 
   /**
    * 내보내기 업데이트 (디바운스)

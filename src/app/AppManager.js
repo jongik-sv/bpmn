@@ -2,10 +2,15 @@ import $ from 'jquery';
 import { getCurrentUser, onAuthStateChange } from '../lib/supabase.js';
 import { showSupabaseLoginModal } from '../components/features/auth/SupabaseLoginModal.js';
 import { dbManager, updateFolder } from '../lib/database.js';
-import { BpmnEditor } from '../editor/BpmnEditor.js';
+import { BpmnEditorCore } from '../components/features/bpmn-editor/BpmnEditorCore.js';
+import { BpmnCollaborationHandler } from '../components/features/bpmn-editor/BpmnCollaborationHandler.js';
+import { BpmnAutoSave } from '../components/features/bpmn-editor/BpmnAutoSave.js';
+import { BpmnUIIntegration } from '../components/features/bpmn-editor/BpmnUIIntegration.js';
 import { rbacManager, hasPermission, getUserRoleInProject } from '../lib/rbac.js';
 import VSCodeLayout from '../components/VSCodeLayout.js';
 import '../components/modals/ProjectMembersModal.js';
+import Router from './Router.js';
+import { eventBus } from '../lib/EventBus.js';
 
 /**
  * 전체 애플리케이션 흐름을 관리하는 클래스
@@ -17,13 +22,20 @@ export class AppManager {
     this.currentPage = 'landing';
     this.projects = [];
     
-    // 페이지 요소들
-    this.landingPage = $('#landing-page');
-    this.dashboardPage = $('#dashboard-page');
-    this.editorPage = $('#editor-page');
+    // 라우터 초기화
+    this.router = new Router();
     
-    // BPMN 에디터
+    // 페이지 요소들
+    this.landingPage = document.getElementById('landing-page');
+    this.dashboardPage = document.getElementById('dashboard-page');
+    this.editorPage = document.getElementById('editor-page');
+    
+    // BPMN 에디터 모듈들
     this.bpmnEditor = null;
+    this.bpmnEditorCore = null;
+    this.bpmnCollaborationHandler = null;
+    this.bpmnAutoSave = null;
+    this.bpmnUIIntegration = null;
     
     // VS Code 스타일 레이아웃
     this.vscodeLayout = null;
@@ -49,6 +61,12 @@ export class AppManager {
     // 인증 상태 확인
     await this.initializeAuth();
     
+    // EventBus 이벤트 리스너 설정
+    this.setupEventBusListeners();
+    
+    // 라우터 이벤트 리스너 설정
+    this.setupRouterEventListeners();
+    
     // 이벤트 리스너 설정
     this.setupEventListeners();
     
@@ -57,27 +75,219 @@ export class AppManager {
   async initializeAuth() {
     // 현재 사용자 확인
     this.currentUser = await getCurrentUser();
-    console.log('Current user on init:', this.currentUser);
+    console.log('🔐 Current user on init:', this.currentUser);
     
     // 인증 상태에 따라 페이지 표시
     if (this.currentUser) {
+      console.log('✅ User found, showing dashboard');
       this.showDashboard();
     } else {
+      console.log('❌ No user found, showing landing');
       this.showLanding();
     }
     
     // 인증 상태 변경 감지
     onAuthStateChange((event, session) => {
-      console.log('Auth state change:', event, session?.user?.email || 'no user');
+      console.log('🔄 Auth state change:', event, session?.user?.email || 'no user');
       
       if (event === 'SIGNED_IN' && session?.user) {
+        console.log('✅ User signed in:', session.user.email);
         this.currentUser = session.user;
         this.onUserSignedIn(session.user);
       } else if (event === 'SIGNED_OUT') {
+        console.log('❌ User signed out');
         this.currentUser = null;
         this.onUserSignedOut();
       }
     });
+  }
+
+  /**
+   * EventBus 이벤트 리스너 설정
+   */
+  setupEventBusListeners() {
+    // 인증 관련 이벤트
+    eventBus.on(eventBus.EVENTS.AUTH_LOGIN, (data) => {
+      console.log('🔐 User logged in via EventBus:', data.user?.email);
+      this.handleUserLogin(data.user);
+    });
+
+    eventBus.on(eventBus.EVENTS.AUTH_LOGOUT, () => {
+      console.log('🚪 User logged out via EventBus');
+      this.handleUserLogout();
+    });
+
+    // 프로젝트 관련 이벤트
+    eventBus.on(eventBus.EVENTS.PROJECT_CREATED, (data) => {
+      console.log('✨ Project created via EventBus:', data.project.name);
+      this.handleProjectCreated(data.project);
+    });
+
+    eventBus.on(eventBus.EVENTS.PROJECT_UPDATED, (data) => {
+      console.log('📝 Project updated via EventBus:', data.projectId);
+      this.handleProjectUpdated(data);
+    });
+
+    eventBus.on(eventBus.EVENTS.PROJECT_DELETED, (data) => {
+      console.log('🗑️ Project deleted via EventBus:', data.projectId);
+      this.handleProjectDeleted(data.projectId);
+    });
+
+    eventBus.on(eventBus.EVENTS.PROJECT_SELECTED, (data) => {
+      console.log('📂 Project selected via EventBus:', data.project.name);
+      this.handleProjectSelected(data.project);
+    });
+
+    // 다이어그램 관련 이벤트
+    eventBus.on(eventBus.EVENTS.DIAGRAM_CREATED, (data) => {
+      console.log('📄 Diagram created via EventBus:', data.diagram.name);
+      this.handleDiagramCreated(data.diagram);
+    });
+
+    eventBus.on(eventBus.EVENTS.DIAGRAM_OPENED, (data) => {
+      console.log('📖 Diagram opened via EventBus:', data.diagram.name);
+      this.handleDiagramOpened(data.diagram);
+    });
+
+    eventBus.on(eventBus.EVENTS.DIAGRAM_CLOSED, (data) => {
+      console.log('📚 Diagram closed via EventBus:', data.diagram?.name);
+      this.handleDiagramClosed(data.diagram);
+    });
+
+    eventBus.on(eventBus.EVENTS.DIAGRAM_UPDATED, (data) => {
+      console.log('📝 Diagram updated via EventBus:', data.diagramId);
+      this.handleDiagramUpdated(data);
+    });
+
+    eventBus.on(eventBus.EVENTS.DIAGRAM_DELETED, (data) => {
+      console.log('🗑️ Diagram deleted via EventBus:', data.diagramId);
+      this.handleDiagramDeleted(data.diagramId);
+    });
+
+    // 폴더 관련 이벤트
+    eventBus.on(eventBus.EVENTS.FOLDER_CREATED, (data) => {
+      console.log('📁 Folder created via EventBus:', data.folder.name);
+      this.handleFolderCreated(data.folder);
+    });
+
+    eventBus.on(eventBus.EVENTS.FOLDER_UPDATED, (data) => {
+      console.log('📝 Folder updated via EventBus:', data.folderId);
+      this.handleFolderUpdated(data);
+    });
+
+    eventBus.on(eventBus.EVENTS.FOLDER_DELETED, (data) => {
+      console.log('🗑️ Folder deleted via EventBus:', data.folderId);
+      this.handleFolderDeleted(data.folderId);
+    });
+
+    // UI 관련 이벤트
+    eventBus.on(eventBus.EVENTS.UI_PAGE_CHANGED, (data) => {
+      console.log('📱 Page changed via EventBus:', data.from, '→', data.to);
+      this.handlePageChanged(data);
+    });
+
+    // 알림 이벤트
+    eventBus.on(eventBus.EVENTS.NOTIFICATION_SHOW, (data) => {
+      this.showNotification(data.message, data.type || 'info');
+    });
+
+    // 에러 이벤트
+    eventBus.on(eventBus.EVENTS.ERROR_OCCURRED, (data) => {
+      console.error('💥 Error occurred via EventBus:', data);
+      this.handleError(data);
+    });
+
+    console.log('🚌 EventBus listeners setup completed');
+  }
+
+  /**
+   * 라우터 이벤트 리스너 설정
+   */
+  setupRouterEventListeners() {
+    // 라우트 변경 전 이벤트
+    this.router.on('beforeNavigate', (data, respond) => {
+      console.log('🔄 Route change requested:', data.from.page, '→', data.to.page);
+      
+      // 에디터 페이지에서 나갈 때 저장 확인 등의 로직을 추가할 수 있음
+      if (data.from.page === 'editor' && this.bpmnEditor) {
+        // 향후 확장: 저장되지 않은 변경사항 확인
+        // const hasUnsavedChanges = this.bpmnEditor.hasUnsavedChanges();
+        // if (hasUnsavedChanges) {
+        //   const shouldContinue = confirm('저장되지 않은 변경사항이 있습니다. 정말로 나가시겠습니까?');
+        //   respond(shouldContinue);
+        //   return;
+        // }
+      }
+      
+      respond(true); // 기본적으로 허용
+    });
+
+    // 라우트 변경 완료 이벤트
+    this.router.on('routeChanged', (data) => {
+      console.log('✅ Route changed:', data.from.page, '→', data.to.page);
+      this.currentPage = data.to.page;
+      
+      // 페이지별 추가 처리
+      this.handleRouteChanged(data);
+    });
+
+    // 페이지 준비 이벤트들
+    this.router.on('prepareLanding', (data) => {
+      this.prepareLandingPage(data.params, data.options);
+    });
+
+    this.router.on('prepareDashboard', (data) => {
+      this.prepareDashboardPage(data.params, data.options);
+    });
+
+    this.router.on('prepareEditor', (data) => {
+      this.prepareEditorPage(data.params, data.options);
+    });
+
+    // 페이지 정리 이벤트들
+    this.router.on('cleanupLanding', (data) => {
+      this.cleanupLandingPage(data.options);
+    });
+
+    this.router.on('cleanupDashboard', (data) => {
+      this.cleanupDashboardPage(data.options);
+    });
+
+    this.router.on('cleanupEditor', (data) => {
+      this.cleanupEditorPage(data.options);
+    });
+
+    console.log('🚀 Router event listeners setup completed');
+  }
+
+  /**
+   * 라우트 변경 후 처리
+   */
+  handleRouteChanged(data) {
+    // 브레드크럼 업데이트 등 공통 처리
+    this.updateBreadcrumb(data.to);
+    
+    // 페이지별 특수 처리
+    switch (data.to.page) {
+      case 'dashboard':
+        if (data.to.params.projectId) {
+          this.loadProjectById(data.to.params.projectId);
+        }
+        break;
+      case 'editor':
+        if (data.to.params.diagramId) {
+          this.openDiagramById(data.to.params.diagramId);
+        }
+        break;
+    }
+  }
+
+  /**
+   * 브레드크럼 업데이트
+   */
+  updateBreadcrumb(route) {
+    // 향후 확장: 브레드크럼 UI 업데이트 로직
+    console.log('📍 Breadcrumb update:', route);
   }
 
   setupEventListeners() {
@@ -117,90 +327,41 @@ export class AppManager {
     $(document).on('click', '.create-project-card', () => {
       this.showCreateProjectModal();
     });
+
+    // Welcome 화면에서 빠른 생성 버튼들
+    $(document).on('click', '#quick-create-diagram', () => {
+      this.createNewDiagram();
+    });
+
+    $(document).on('click', '#quick-create-folder', () => {
+      this.createNewFolder();
+    });
   }
 
-  // 페이지 전환 메서드들
+  // 페이지 전환 메서드들 (Router 사용)
   showLanding() {
-    this.currentPage = 'landing';
-    this.landingPage.show();
-    this.dashboardPage.hide();
-    this.editorPage.hide();
+    return this.router.navigateTo('landing');
   }
 
-  async showDashboard() {
-    this.currentPage = 'dashboard';
-    this.landingPage.hide();
-    this.dashboardPage.show();
-    this.editorPage.hide();
-    
-    // 대시보드로 이동할 때 협업 세션 해제
-    if (this.collaborationManager) {
-      console.log('🔌 대시보드 이동으로 인한 협업 세션 해제');
-      this.collaborationManager.disconnect();
-    }
-    
-    // 사용자 이름 표시
-    if (this.currentUser) {
-      const displayName = this.currentUser.user_metadata?.display_name || 
-                         this.currentUser.email?.split('@')[0] || 
-                         '사용자';
-      $('#user-name').text(displayName);
-      
-      // 프로젝트 목록 로드
-      await this.loadProjects();
-    }
+  async showDashboard(params = {}) {
+    console.log('📊 showDashboard called with params:', params);
+    return await this.router.navigateTo('dashboard', params);
   }
 
   async showEditor(project) {
-    this.currentPage = 'editor';
+    // 프로젝트 설정
     this.currentProject = project;
     
-    this.landingPage.hide();
-    this.dashboardPage.hide();
-    this.editorPage.show();
-    
-    // 프로젝트 이름 표시
-    $('#current-project-name').text(project.name);
-    
-    // 먼저 프로젝트 데이터 로드
-    await this.loadProjectData();
-    
-    // VS Code 스타일 레이아웃 초기화
-    await this.initializeVSCodeLayout();
-    
-    // 이전 편집 중인 에디터 내용 버리기 - 초기 화면으로 복원
-    if (this.bpmnEditor) {
-      console.log('🔄 이전 편집 내용 버리고 초기 화면으로 복원');
-      try {
-        // 에디터를 닫고 초기 상태로 복원
-        await this.bpmnEditor.closeDiagram();
-      } catch (error) {
-        console.warn('⚠️ 이전 다이어그램 닫기 실패:', error);
-      }
-    }
-    
-    // VS Code Layout에 프로젝트 데이터 적용
-    if (this.vscodeLayout) {
-      await this.vscodeLayout.setupBPMNIntegration();
-      
-      // Explorer에 데이터 설정
-      if (this.vscodeLayout.explorer && this.vscodeLayout.explorer.explorerCore) {
-        const explorerCore = this.vscodeLayout.explorer.explorerCore;
-        if (explorerCore.dataProvider && explorerCore.dataProvider.setProjectData) {
-          console.log('🔧 Setting project data to Explorer');
-          explorerCore.dataProvider.setProjectData(this.currentProject);
-          explorerCore.refreshTree();
-        }
-      }
-    } else {
-      // 폴백: 기존 파일 트리 로드
-      this.loadFileTree();
-    }
+    // Router를 통한 페이지 이동
+    return await this.router.navigateTo('editor', { 
+      projectId: project.id 
+    });
   }
 
   // 인증 관련 메서드들
   onUserSignedIn(user) {
-    console.log('User signed in:', user.email);
+    console.log('🔐 User signed in:', user.email);
+    console.log('📍 Current page:', this.currentPage);
     this.currentUser = user;
     
     // BPMN 에디터에 사용자 설정
@@ -210,6 +371,7 @@ export class AppManager {
     
     // 현재 페이지가 에디터인 경우 대시보드로 이동하지 않음
     if (this.currentPage !== 'editor') {
+      console.log('🔄 Navigating to dashboard after login');
       this.showDashboard();
     } else {
       console.log('⏭️ User signed in but staying on editor page');
@@ -246,8 +408,9 @@ export class AppManager {
   }
 
   showLoginModal(mode = 'login') {
+    console.log('🔐 Showing login modal, mode:', mode);
     showSupabaseLoginModal(mode, (user) => {
-      console.log('Login successful:', user);
+      console.log('✅ Login successful:', user?.email || 'no user');
       // 인증 상태 변경은 onAuthStateChange에서 처리됨
     });
   }
@@ -282,6 +445,7 @@ export class AppManager {
   // 프로젝트 관련 메서드들
   async loadProjects() {
     try {
+      console.log('📊 Loading projects for user:', this.currentUser.id);
       const { data, error } = await dbManager.getUserProjects(this.currentUser.id);
       
       if (error) {
@@ -290,6 +454,7 @@ export class AppManager {
       }
 
       this.projects = data || [];
+      console.log('📊 Projects loaded:', this.projects.length, 'projects');
       this.renderProjectsGrid();
       
     } catch (error) {
@@ -298,7 +463,9 @@ export class AppManager {
   }
 
   renderProjectsGrid() {
-    const grid = $('#projects-grid');
+    console.log('🎨 Rendering projects grid, projects count:', this.projects.length);
+    const grid = document.getElementById('projects-grid');
+    console.log('🎨 Projects grid element found:', !!grid);
     
     // 새 프로젝트 생성 카드
     let html = `
@@ -312,6 +479,7 @@ export class AppManager {
     `;
     
     // 기존 프로젝트 카드들
+    console.log('🎨 Rendering project cards for:', this.projects.map(p => p.name));
     this.projects.forEach(project => {
       const role = project.project_members?.[0]?.role || 'viewer';
       const roleText = {
@@ -342,7 +510,12 @@ export class AppManager {
       `;
     });
     
-    grid.html(html);
+    console.log('🎨 Setting grid HTML, length:', html.length);
+    if (grid) {
+      grid.innerHTML = html;
+    }
+    
+    console.log('✅ Projects grid rendered with', this.projects.length, 'projects');
   }
 
   async openProject(projectId) {
@@ -1240,16 +1413,75 @@ export class AppManager {
     try {
       console.log('🔧 Initializing BPMN Editor...');
       
-      if (!this.bpmnEditor) {
-        this.bpmnEditor = new BpmnEditor();
-        console.log('✅ BPMN Editor instance created (not initialized yet - waiting for document selection)');
+      if (!this.bpmnEditorCore) {
+        // 모듈형 BPMN 에디터 초기화
+        this.bpmnEditorCore = new BpmnEditorCore();
+        this.bpmnCollaborationHandler = new BpmnCollaborationHandler(this.bpmnEditorCore);
+        this.bpmnAutoSave = new BpmnAutoSave(this.bpmnEditorCore);
+        this.bpmnUIIntegration = new BpmnUIIntegration(this.bpmnEditorCore);
+        
+        // 레거시 호환성을 위한 래퍼 객체 생성
+        this.bpmnEditor = {
+          editorCore: this.bpmnEditorCore,
+          collaborationHandler: this.bpmnCollaborationHandler,
+          autoSave: this.bpmnAutoSave,
+          uiIntegration: this.bpmnUIIntegration,
+          
+          // 주요 메서드들을 래핑
+          async initializeWhenReady() {
+            return await this.editorCore.initializeWhenReady();
+          },
+          async openDiagram(diagramData) {
+            return await this.editorCore.openDiagram(diagramData);
+          },
+          async closeDiagram() {
+            return await this.editorCore.closeDiagram();
+          },
+          async createNewDiagram() {
+            return await this.editorCore.createNewDiagram();
+          },
+          async exportDiagram() {
+            return await this.editorCore.exportDiagram();
+          },
+          getCurrentDiagram() {
+            return this.editorCore.getCurrentDiagram();
+          },
+          getModeler() {
+            return this.editorCore.getModeler();
+          },
+          async setUser(user) {
+            await this.collaborationHandler.setUser(user);
+            this.uiIntegration.setCurrentUser(user);
+          },
+          async setProject(project) {
+            await this.collaborationHandler.setProject(project);
+            this.uiIntegration.setCurrentProject(project);
+          },
+          async moveToContainer(containerSelector) {
+            return await this.editorCore.moveToContainer(containerSelector);
+          },
+          isConnectedToServer() {
+            return this.collaborationHandler.isConnectedToServer();
+          },
+          getConnectedUsers() {
+            return this.collaborationHandler.getConnectedUsers();
+          },
+          disconnect() {
+            this.collaborationHandler.disconnect();
+          },
+          destroy() {
+            this.editorCore.destroy();
+            this.collaborationHandler.destroy();
+            this.autoSave.destroy();
+            this.uiIntegration.destroy();
+          }
+        };
+        
+        console.log('✅ BPMN Editor modules created (not initialized yet - waiting for document selection)');
         
         // 전역 변수로 설정 (협업 모듈에서 접근하기 위해)
         window.bpmnEditor = this.bpmnEditor;
-        
-        // 지연 초기화: 문서가 선택될 때까지 실제 초기화를 하지 않음
-        // await this.bpmnEditor.initializeWhenReady(); // 이 부분을 주석 처리
-        // console.log('✅ BPMN Editor initialized');
+        window.bpmnEditorCore = this.bpmnEditorCore;
       }
       
       // 현재 사용자 설정
@@ -1260,8 +1492,12 @@ export class AppManager {
       
       // 현재 프로젝트 설정
       if (this.currentProject) {
-        await this.bpmnEditor.setProject(this.currentProject);
-        console.log('✅ Project set in BPMN Editor:', this.currentProject.name);
+        try {
+          await this.bpmnEditor.setProject(this.currentProject);
+          console.log('✅ Project set in BPMN Editor:', this.currentProject.name);
+        } catch (error) {
+          console.warn('⚠️ 프로젝트 설정 중 협업 모듈 오류 발생, 에디터는 계속 작동합니다:', error);
+        }
       }
       
       // VS Code 레이아웃과 통합
@@ -1793,6 +2029,513 @@ export class AppManager {
     } finally {
       this.setFormLoading(false);
     }
+  }
+
+  // ==================== Router 관련 메서드들 ====================
+
+  /**
+   * 페이지 이동 (Router 사용)
+   */
+  async navigateToPage(page, params = {}, options = {}) {
+    return await this.router.navigateTo(page, params, options);
+  }
+
+  /**
+   * 랜딩 페이지 준비
+   */
+  prepareLandingPage(params, options) {
+    console.log('🏠 Preparing landing page');
+    // 랜딩 페이지 특별한 준비 작업이 있다면 여기서
+  }
+
+  /**
+   * 대시보드 페이지 준비
+   */
+  async prepareDashboardPage(params, options) {
+    console.log('📊 Preparing dashboard page');
+    console.log('👤 Current user:', this.currentUser?.email || 'none');
+    
+    // 사용자 로그인 확인
+    if (!this.currentUser) {
+      console.log('❌ User not logged in, redirecting to landing');
+      await this.router.navigateTo('landing');
+      return;
+    }
+
+    // 대시보드로 이동할 때 협업 세션 해제
+    if (this.collaborationManager) {
+      console.log('🔌 대시보드 이동으로 인한 협업 세션 해제');
+      this.collaborationManager.disconnect();
+    }
+    
+    // 사용자 이름 표시
+    if (this.currentUser) {
+      const displayName = this.currentUser.user_metadata?.display_name || 
+                         this.currentUser.email?.split('@')[0] || 
+                         '사용자';
+      $('#user-name').text(displayName);
+    }
+
+    // 프로젝트 목록 로드
+    await this.loadProjects();
+    
+    // 특정 프로젝트가 지정된 경우
+    if (params.projectId) {
+      await this.selectProject(params.projectId);
+    }
+  }
+
+  /**
+   * 에디터 페이지 준비
+   */
+  async prepareEditorPage(params, options) {
+    console.log('✏️ Preparing editor page');
+    
+    // 사용자 로그인 확인
+    if (!this.currentUser) {
+      console.log('❌ User not logged in, redirecting to landing');
+      await this.router.navigateTo('landing');
+      return;
+    }
+
+    // 프로젝트 설정 (params에서 projectId가 있는 경우)
+    if (params.projectId && (!this.currentProject || this.currentProject.id !== params.projectId)) {
+      const project = this.projects.find(p => p.id === params.projectId);
+      if (project) {
+        this.currentProject = project;
+      }
+    }
+
+    // 프로젝트 선택 확인
+    if (!this.currentProject) {
+      console.log('❌ No project selected, redirecting to dashboard');
+      await this.router.navigateTo('dashboard');
+      return;
+    }
+
+    // 프로젝트 이름 표시
+    $('#current-project-name').text(this.currentProject.name);
+    
+    // 프로젝트 데이터 로드
+    await this.loadProjectData();
+    
+    // VS Code 스타일 레이아웃 초기화
+    await this.initializeVSCodeLayout();
+    
+    // 이전 편집 중인 에디터 내용 버리기 - 초기 화면으로 복원
+    if (this.bpmnEditor) {
+      console.log('🔄 이전 편집 내용 버리고 초기 화면으로 복원');
+      try {
+        // 에디터를 닫고 초기 상태로 복원
+        await this.bpmnEditor.closeDiagram();
+      } catch (error) {
+        console.warn('⚠️ 이전 다이어그램 닫기 실패:', error);
+      }
+    }
+    
+    // VS Code Layout에 프로젝트 데이터 적용
+    if (this.vscodeLayout) {
+      await this.vscodeLayout.setupBPMNIntegration();
+      
+      // Explorer에 데이터 설정
+      if (this.vscodeLayout.explorer && this.vscodeLayout.explorer.explorerCore) {
+        const explorerCore = this.vscodeLayout.explorer.explorerCore;
+        if (explorerCore.dataProvider && explorerCore.dataProvider.setProjectData) {
+          console.log('🔧 Setting project data to Explorer');
+          explorerCore.dataProvider.setProjectData(this.currentProject);
+          explorerCore.refreshTree();
+        }
+      }
+    } else {
+      // 폴백: 기존 파일 트리 로드
+      this.loadFileTree();
+    }
+
+    // BPMN 에디터 초기화 (아직 초기화되지 않은 경우)
+    if (!this.bpmnEditor) {
+      await this.initializeBpmnEditor();
+    }
+
+    // 특정 다이어그램이 지정된 경우
+    if (params.diagramId) {
+      await this.openDiagramById(params.diagramId);
+    } else {
+      // 다이어그램이 지정되지 않은 경우 welcome 메시지 표시
+      if (this.vscodeLayout && this.vscodeLayout.layoutManager) {
+        this.vscodeLayout.layoutManager.showWelcomeMessage();
+        console.log('📄 Welcome message displayed');
+      }
+    }
+  }
+
+  /**
+   * 랜딩 페이지 정리
+   */
+  cleanupLandingPage(options) {
+    console.log('🧹 Cleaning up landing page');
+    // 필요한 정리 작업
+  }
+
+  /**
+   * 대시보드 페이지 정리
+   */
+  cleanupDashboardPage(options) {
+    console.log('🧹 Cleaning up dashboard page');
+    // 필요한 정리 작업
+  }
+
+  /**
+   * 에디터 페이지 정리
+   */
+  cleanupEditorPage(options) {
+    console.log('🧹 Cleaning up editor page');
+    
+    // 에디터 리소스 정리 (필요한 경우)
+    if (this.bpmnEditor && options.fullCleanup) {
+      // 전체 정리가 필요한 경우에만
+      // this.bpmnEditor.destroy();
+      // this.bpmnEditor = null;
+    }
+  }
+
+  /**
+   * 프로젝트 ID로 로드 (라우터용)
+   */
+  async loadProjectById(projectId) {
+    const project = this.projects.find(p => p.id === projectId);
+    if (project) {
+      await this.selectProject(project.id);
+    } else {
+      console.warn(`❌ Project not found: ${projectId}`);
+      await this.router.navigateTo('dashboard');
+    }
+  }
+
+  /**
+   * 다이어그램 ID로 열기 (라우터용)
+   */
+  async openDiagramById(diagramId) {
+    if (!this.currentProject) {
+      console.warn('❌ No current project for diagram:', diagramId);
+      return;
+    }
+
+    const diagram = this.currentProject.diagrams?.find(d => d.id === diagramId);
+    if (diagram && this.bpmnEditor) {
+      await this.bpmnEditor.openDiagram({
+        id: diagram.id,
+        name: diagram.name,
+        content: diagram.bpmn_xml
+      });
+    } else {
+      console.warn(`❌ Diagram not found: ${diagramId}`);
+    }
+  }
+
+
+  /**
+   * 라우터 상태 정보
+   */
+  getRouterStatus() {
+    return this.router.getStatus();
+  }
+
+  // ==================== EventBus 이벤트 핸들러들 ====================
+
+  /**
+   * 사용자 로그인 처리
+   */
+  handleUserLogin(user) {
+    this.currentUser = user;
+    // 필요한 경우 대시보드로 이동
+    if (this.router.isCurrentPage('landing')) {
+      this.router.navigateTo('dashboard');
+    }
+  }
+
+  /**
+   * 사용자 로그아웃 처리
+   */
+  handleUserLogout() {
+    this.currentUser = null;
+    this.currentProject = null;
+    this.projects = [];
+    
+    // 랜딩 페이지로 이동
+    this.router.navigateTo('landing');
+  }
+
+  /**
+   * 프로젝트 생성 처리
+   */
+  handleProjectCreated(project) {
+    // 프로젝트 목록에 추가
+    if (!this.projects.find(p => p.id === project.id)) {
+      this.projects.push(project);
+    }
+    
+    // UI 새로고침
+    this.refreshProjectList();
+    
+    // 알림 표시
+    eventBus.emit(eventBus.EVENTS.NOTIFICATION_SHOW, {
+      message: `프로젝트 "${project.name}"가 생성되었습니다.`,
+      type: 'success'
+    });
+  }
+
+  /**
+   * 프로젝트 업데이트 처리
+   */
+  handleProjectUpdated(data) {
+    // 프로젝트 목록에서 업데이트
+    const projectIndex = this.projects.findIndex(p => p.id === data.projectId);
+    if (projectIndex !== -1) {
+      this.projects[projectIndex] = { ...this.projects[projectIndex], ...data.updates };
+    }
+    
+    // 현재 프로젝트가 업데이트된 경우
+    if (this.currentProject && this.currentProject.id === data.projectId) {
+      this.currentProject = { ...this.currentProject, ...data.updates };
+    }
+    
+    // UI 새로고침
+    this.refreshProjectList();
+  }
+
+  /**
+   * 프로젝트 삭제 처리
+   */
+  handleProjectDeleted(projectId) {
+    // 프로젝트 목록에서 제거
+    this.projects = this.projects.filter(p => p.id !== projectId);
+    
+    // 현재 프로젝트가 삭제된 경우
+    if (this.currentProject && this.currentProject.id === projectId) {
+      this.currentProject = null;
+      // 대시보드로 이동
+      this.router.navigateTo('dashboard');
+    }
+    
+    // UI 새로고침
+    this.refreshProjectList();
+    
+    // 알림 표시
+    eventBus.emit(eventBus.EVENTS.NOTIFICATION_SHOW, {
+      message: '프로젝트가 삭제되었습니다.',
+      type: 'info'
+    });
+  }
+
+  /**
+   * 프로젝트 선택 처리
+   */
+  handleProjectSelected(project) {
+    this.currentProject = project;
+    // 에디터 페이지로 이동
+    this.router.navigateTo('editor', { projectId: project.id });
+  }
+
+  /**
+   * 다이어그램 생성 처리
+   */
+  handleDiagramCreated(diagram) {
+    // 현재 프로젝트에 다이어그램 추가
+    if (this.currentProject && this.currentProject.id === diagram.project_id) {
+      if (!this.currentProject.diagrams) {
+        this.currentProject.diagrams = [];
+      }
+      this.currentProject.diagrams.push(diagram);
+      
+      // Explorer 새로고침
+      this.refreshExplorer();
+    }
+    
+    // 알림 표시
+    eventBus.emit(eventBus.EVENTS.NOTIFICATION_SHOW, {
+      message: `다이어그램 "${diagram.name}"가 생성되었습니다.`,
+      type: 'success'
+    });
+  }
+
+  /**
+   * 다이어그램 열기 처리
+   */
+  handleDiagramOpened(diagram) {
+    // 현재 다이어그램 상태 업데이트
+    if (this.bpmnEditor) {
+      this.bpmnEditor.currentDiagram = diagram;
+    }
+  }
+
+  /**
+   * 다이어그램 닫기 처리
+   */
+  handleDiagramClosed(diagram) {
+    // 필요한 정리 작업
+    console.log('Diagram closed:', diagram?.name);
+  }
+
+  /**
+   * 다이어그램 업데이트 처리
+   */
+  handleDiagramUpdated(data) {
+    // 현재 프로젝트의 다이어그램 목록 업데이트
+    if (this.currentProject && this.currentProject.diagrams) {
+      const diagramIndex = this.currentProject.diagrams.findIndex(d => d.id === data.diagramId);
+      if (diagramIndex !== -1) {
+        this.currentProject.diagrams[diagramIndex] = { 
+          ...this.currentProject.diagrams[diagramIndex], 
+          ...data.updates 
+        };
+        
+        // Explorer 새로고침
+        this.refreshExplorer();
+      }
+    }
+  }
+
+  /**
+   * 다이어그램 삭제 처리
+   */
+  handleDiagramDeleted(diagramId) {
+    // 현재 프로젝트에서 다이어그램 제거
+    if (this.currentProject && this.currentProject.diagrams) {
+      this.currentProject.diagrams = this.currentProject.diagrams.filter(d => d.id !== diagramId);
+      
+      // Explorer 새로고침
+      this.refreshExplorer();
+    }
+    
+    // 알림 표시
+    eventBus.emit(eventBus.EVENTS.NOTIFICATION_SHOW, {
+      message: '다이어그램이 삭제되었습니다.',
+      type: 'info'
+    });
+  }
+
+  /**
+   * 폴더 생성 처리
+   */
+  handleFolderCreated(folder) {
+    // 현재 프로젝트에 폴더 추가
+    if (this.currentProject && this.currentProject.id === folder.project_id) {
+      if (!this.currentProject.folders) {
+        this.currentProject.folders = [];
+      }
+      this.currentProject.folders.push(folder);
+      
+      // Explorer 새로고침
+      this.refreshExplorer();
+    }
+    
+    // 알림 표시
+    eventBus.emit(eventBus.EVENTS.NOTIFICATION_SHOW, {
+      message: `폴더 "${folder.name}"가 생성되었습니다.`,
+      type: 'success'
+    });
+  }
+
+  /**
+   * 폴더 업데이트 처리
+   */
+  handleFolderUpdated(data) {
+    // 현재 프로젝트의 폴더 목록 업데이트
+    if (this.currentProject && this.currentProject.folders) {
+      const folderIndex = this.currentProject.folders.findIndex(f => f.id === data.folderId);
+      if (folderIndex !== -1) {
+        this.currentProject.folders[folderIndex] = { 
+          ...this.currentProject.folders[folderIndex], 
+          ...data.updates 
+        };
+        
+        // Explorer 새로고침
+        this.refreshExplorer();
+      }
+    }
+  }
+
+  /**
+   * 폴더 삭제 처리
+   */
+  handleFolderDeleted(folderId) {
+    // 현재 프로젝트에서 폴더 제거
+    if (this.currentProject && this.currentProject.folders) {
+      this.currentProject.folders = this.currentProject.folders.filter(f => f.id !== folderId);
+      
+      // Explorer 새로고침
+      this.refreshExplorer();
+    }
+    
+    // 알림 표시
+    eventBus.emit(eventBus.EVENTS.NOTIFICATION_SHOW, {
+      message: '폴더가 삭제되었습니다.',
+      type: 'info'
+    });
+  }
+
+  /**
+   * 페이지 변경 처리
+   */
+  handlePageChanged(data) {
+    // 필요한 페이지별 처리
+    console.log('Page changed handled:', data);
+  }
+
+  /**
+   * 에러 처리
+   */
+  handleError(errorData) {
+    // 에러 로깅
+    console.error('Application error:', errorData);
+    
+    // 사용자에게 에러 표시
+    let message = '오류가 발생했습니다.';
+    
+    if (errorData.type === 'network_error') {
+      message = '네트워크 연결을 확인해주세요.';
+    } else if (errorData.type === 'auth_error') {
+      message = '인증 오류가 발생했습니다. 다시 로그인해주세요.';
+    } else if (errorData.error && errorData.error.message) {
+      message = errorData.error.message;
+    }
+    
+    eventBus.emit(eventBus.EVENTS.NOTIFICATION_SHOW, {
+      message,
+      type: 'error'
+    });
+  }
+
+  // ==================== 헬퍼 메서드들 ====================
+
+  /**
+   * 프로젝트 목록 UI 새로고침
+   */
+  refreshProjectList() {
+    // 대시보드 페이지의 프로젝트 목록 새로고침
+    if (this.router.isCurrentPage('dashboard')) {
+      this.renderProjectList();
+    }
+  }
+
+  /**
+   * Explorer 새로고침
+   */
+  refreshExplorer() {
+    if (this.vscodeLayout && this.vscodeLayout.explorer) {
+      const explorerCore = this.vscodeLayout.explorer.explorerCore;
+      if (explorerCore && explorerCore.dataProvider && explorerCore.dataProvider.setProjectData) {
+        explorerCore.dataProvider.setProjectData(this.currentProject);
+        explorerCore.refreshTree();
+      }
+    }
+  }
+
+  /**
+   * EventBus 상태 정보
+   */
+  getEventBusStatus() {
+    return eventBus.getStatus();
   }
 }
 

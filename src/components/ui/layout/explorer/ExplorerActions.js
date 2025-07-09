@@ -1,4 +1,9 @@
 import { EventEmitter } from 'events';
+import { commandManager } from '../../../../lib/CommandManager.js';
+import { DiagramCommandFactory } from '../../../../commands/DiagramCommands.js';
+import { FolderCommandFactory } from '../../../../commands/FolderCommands.js';
+import { diagramService } from '../../../../services/DiagramService.js';
+import { folderService } from '../../../../services/FolderService.js';
 
 /**
  * Explorer 액션 처리 전담 클래스
@@ -131,56 +136,34 @@ export class ExplorerActions extends EventEmitter {
       
       console.log('🔧 Creating diagram with folderId:', folderId);
       
-      // 다이어그램 생성
-      const { dbManager } = await import('../../../../lib/database.js');
+      // 다이어그램 생성 - Command Pattern 사용
+      diagramService.setCurrentUser(appManager.currentUser);
+      diagramService.setCurrentProject(appManager.currentProject);
       
       const diagramData = {
         name: fileName.trim(),
-        project_id: appManager.currentProject.id,
         folder_id: folderId,
-        bpmn_xml: `<?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
-                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
-                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
-                  id="Definitions_${Date.now()}" 
-                  targetNamespace="http://bpmn.io/schema/bpmn">
-  <bpmn:process id="Process_${Date.now()}" isExecutable="true">
-    <bpmn:startEvent id="StartEvent_1"/>
-  </bpmn:process>
-  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
-    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_${Date.now()}">
-      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
-        <dc:Bounds x="179" y="99" width="36" height="36"/>
-      </bpmndi:BPMNShape>
-    </bpmndi:BPMNPlane>
-  </bpmndi:BPMNDiagram>
-</bpmn:definitions>`,
-        created_by: appManager.currentUser?.id
+        description: ''
       };
       
-      const result = await dbManager.createDiagram(diagramData);
+      const createCommand = DiagramCommandFactory.createDiagram(diagramData);
+      const result = await commandManager.executeCommand(createCommand);
       
-      if (result.error) {
-        console.error('❌ Failed to create diagram:', result.error);
-        alert('다이어그램 생성에 실패했습니다.');
-        return;
-      }
-      
-      console.log('✅ Diagram created successfully:', result.data);
+      console.log('✅ Diagram created successfully:', result);
       
       // 프로젝트 데이터 새로고침 후 트리 업데이트
       await this.refreshProjectData();
       
       // 생성된 다이어그램 자동으로 열기
-      if (appManager.bpmnEditor && result.data) {
+      if (appManager.bpmnEditor && result) {
         await appManager.bpmnEditor.openDiagram({
-          id: result.data.id,
-          name: result.data.name,
-          content: result.data.bpmn_xml
+          id: result.id,
+          name: result.name,
+          content: result.bpmn_xml
         });
       }
       
-      this.emit('fileCreated', result.data);
+      this.emit('fileCreated', result);
       
     } catch (error) {
       console.error('❌ Error creating file:', error);
@@ -233,30 +216,25 @@ export class ExplorerActions extends EventEmitter {
       
       console.log('🔧 Creating folder with parentId:', parentId);
       
-      // 폴더 생성
-      const { dbManager } = await import('../../../../lib/database.js');
+      // 폴더 생성 - Command Pattern 사용
+      folderService.setCurrentUser(appManager.currentUser);
+      folderService.setCurrentProject(appManager.currentProject);
       
       const folderData = {
         name: folderName.trim(),
-        project_id: appManager.currentProject.id,
         parent_id: parentId,
-        created_by: appManager.currentUser?.id
+        description: ''
       };
       
-      const result = await dbManager.createFolder(folderData);
+      const createCommand = FolderCommandFactory.createFolder(folderData);
+      const result = await commandManager.executeCommand(createCommand);
       
-      if (result.error) {
-        console.error('❌ Failed to create folder:', result.error);
-        alert('폴더 생성에 실패했습니다.');
-        return;
-      }
-      
-      console.log('✅ Folder created successfully:', result.data);
+      console.log('✅ Folder created successfully:', result);
       
       // 프로젝트 데이터 새로고침 후 트리 업데이트
       await this.refreshProjectData();
       
-      this.emit('folderCreated', result.data);
+      this.emit('folderCreated', result);
       
     } catch (error) {
       console.error('❌ Error creating folder:', error);
@@ -307,28 +285,25 @@ export class ExplorerActions extends EventEmitter {
         return;
       }
       
-      const { dbManager } = await import('../../../../lib/database.js');
+      // 서비스 설정
+      diagramService.setCurrentUser(appManager.currentUser);
+      diagramService.setCurrentProject(appManager.currentProject);
+      folderService.setCurrentUser(appManager.currentUser);
+      folderService.setCurrentProject(appManager.currentProject);
+      
       let result;
       
       if (item.type === 'folder') {
-        // 폴더 이름 변경
-        result = await dbManager.renameFolder(item.folderId, newName);
+        // 폴더 이름 변경 - Command Pattern 사용
+        const renameCommand = FolderCommandFactory.renameFolder(item.folderId, newName);
+        result = await commandManager.executeCommand(renameCommand);
       } else {
-        // 다이어그램 이름 변경
-        const updates = {
-          name: newName,
-          last_modified_by: appManager.currentUser?.id
-        };
-        result = await dbManager.updateDiagram(item.diagramId, updates);
+        // 다이어그램 이름 변경 - Command Pattern 사용
+        const renameCommand = DiagramCommandFactory.renameDiagram(item.diagramId, newName);
+        result = await commandManager.executeCommand(renameCommand);
       }
       
-      if (result.error) {
-        console.error('❌ Failed to rename item:', result.error);
-        alert(`${item.type === 'folder' ? '폴더' : '다이어그램'} 이름 변경에 실패했습니다.`);
-        return;
-      }
-      
-      console.log('✅ Item renamed successfully:', result.data);
+      console.log('✅ Item renamed successfully:', result);
       
       // 프로젝트 데이터 새로고침 후 트리 업데이트
       await this.refreshProjectData();
@@ -341,7 +316,7 @@ export class ExplorerActions extends EventEmitter {
         }
       }
       
-      this.emit('itemRenamed', { item, newName, result: result.data });
+      this.emit('itemRenamed', { item, newName, result });
       
     } catch (error) {
       console.error('❌ Error renaming item:', error);
@@ -373,12 +348,18 @@ export class ExplorerActions extends EventEmitter {
         return;
       }
       
-      const { dbManager } = await import('../../../../lib/database.js');
+      // 서비스 설정
+      diagramService.setCurrentUser(appManager.currentUser);
+      diagramService.setCurrentProject(appManager.currentProject);
+      folderService.setCurrentUser(appManager.currentUser);
+      folderService.setCurrentProject(appManager.currentProject);
+      
       let result;
       
       if (item.type === 'folder') {
-        // 폴더 삭제 (하위 항목들도 함께 삭제됨)
-        result = await dbManager.deleteFolder(item.folderId);
+        // 폴더 삭제 - Command Pattern 사용
+        const deleteCommand = FolderCommandFactory.deleteFolder(item.folderId);
+        result = await commandManager.executeCommand(deleteCommand);
         
         // 만약 현재 열린 다이어그램이 삭제되는 폴더 내에 있다면 에디터 닫기
         if (appManager.bpmnEditor && appManager.bpmnEditor.currentDiagram) {
@@ -391,8 +372,9 @@ export class ExplorerActions extends EventEmitter {
           }
         }
       } else {
-        // 다이어그램 삭제
-        result = await dbManager.deleteDiagram(item.diagramId);
+        // 다이어그램 삭제 - Command Pattern 사용
+        const deleteCommand = DiagramCommandFactory.deleteDiagram(item.diagramId);
+        result = await commandManager.executeCommand(deleteCommand);
         
         // 현재 열린 다이어그램이 삭제되는 다이어그램인 경우 에디터 닫기
         if (appManager.bpmnEditor && appManager.bpmnEditor.currentDiagram) {
@@ -403,13 +385,7 @@ export class ExplorerActions extends EventEmitter {
         }
       }
       
-      if (result.error) {
-        console.error('❌ Failed to delete item:', result.error);
-        alert(`${itemType} 삭제에 실패했습니다: ${result.error.message || result.error}`);
-        return;
-      }
-      
-      console.log(`✅ ${itemType} deleted successfully:`, result.data);
+      console.log(`✅ ${itemType} deleted successfully:`, result);
       
       // 프로젝트 데이터 새로고침 후 트리 업데이트
       await this.refreshProjectData();
@@ -425,7 +401,7 @@ export class ExplorerActions extends EventEmitter {
       }
       
       console.log(`✅ ${itemType} "${item.label}" 삭제 완료`);
-      this.emit('itemDeleted', { item, result: result.data });
+      this.emit('itemDeleted', { item, result });
       
     } catch (error) {
       console.error('❌ Error deleting item:', error);
@@ -713,28 +689,28 @@ export class ExplorerActions extends EventEmitter {
         return;
       }
       
-      const { dbManager } = await import('../../../../lib/database.js');
+      // 서비스 설정
+      diagramService.setCurrentUser(appManager.currentUser);
+      diagramService.setCurrentProject(appManager.currentProject);
+      folderService.setCurrentUser(appManager.currentUser);
+      folderService.setCurrentProject(appManager.currentProject);
       
       // 새 부모 ID 확인
       const newParentId = newParent.folderId || null;
       
       let result;
       if (item.type === 'folder') {
-        result = await dbManager.moveFolder(item.folderId, newParentId);
+        const moveCommand = FolderCommandFactory.moveFolder(item.folderId, newParentId);
+        result = await commandManager.executeCommand(moveCommand);
       } else {
-        result = await dbManager.moveDiagram(item.diagramId, newParentId);
-      }
-      
-      if (result.error) {
-        console.error('❌ Failed to move item:', result.error);
-        alert('이동에 실패했습니다.');
-        return;
+        const moveCommand = DiagramCommandFactory.moveDiagram(item.diagramId, newParentId);
+        result = await commandManager.executeCommand(moveCommand);
       }
       
       console.log('✅ Item moved successfully');
       await this.refreshProjectData();
       
-      this.emit('itemMoved', { item, newParent, result: result.data });
+      this.emit('itemMoved', { item, newParent, result });
       
     } catch (error) {
       console.error('❌ Error moving item:', error);
