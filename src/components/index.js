@@ -87,13 +87,6 @@ export {
 export { default as ProjectMembersModal } from './modals/ProjectMembersModal.js';
 export { default as SupabaseLoginModal } from './modals/SupabaseLoginModal.js';
 
-// 새로운 모듈형 컴포넌트들을 기본으로 export
-export { default as ActivityBarNew } from './ui/layout/activity-bar/index.js';
-export { default as ContextMenuNew } from './ui/interactions/context-menu/index.js';
-export { default as DragDropControllerNew } from './ui/interactions/drag-drop/index.js';
-export { default as EditorHeaderNew } from './ui/layout/editor-header/index.js';
-export { default as ProjectManagerNew } from './features/project-manager/index.js';
-export { default as TreeDataProviderNew } from './ui/interactions/tree-data/index.js';
-export { default as AccessibilityManagerNew } from './common/accessibility/index.js';
-export { default as ExplorerNew } from './ExplorerNew.js';
-export { default as VSCodeLayoutNew } from './VSCodeLayoutNew.js';
+// 메인 컴포넌트들 export
+export { default as Explorer } from './Explorer.js';
+export { default as VSCodeLayout } from './VSCodeLayout.js';

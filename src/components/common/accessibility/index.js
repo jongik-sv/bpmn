@@ -4,7 +4,7 @@
  */
 
 export { AccessibilityCore } from './AccessibilityCore.js';
-export { AccessibilityManager } from './AccessibilityManagerNew.js';
+export { AccessibilityManager } from './AccessibilityManager.js';
 
 // 하위 호환성을 위한 기본 export
-export { AccessibilityManager as default } from './AccessibilityManagerNew.js';
+export { AccessibilityManager as default } from './AccessibilityManager.js';

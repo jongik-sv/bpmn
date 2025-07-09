@@ -5,7 +5,7 @@
 
 export { ContextMenuCore } from './ContextMenuCore.js';
 export { ContextMenuEventHandler } from './ContextMenuEventHandler.js';
-export { ContextMenu } from './ContextMenuNew.js';
+export { ContextMenu } from './ContextMenu.js';
 
 // 하위 호환성을 위한 기본 export
-export { ContextMenu as default } from './ContextMenuNew.js';
+export { ContextMenu as default } from './ContextMenu.js';

@@ -8,8 +8,8 @@ export { VSCodeEventHandler } from './VSCodeEventHandler.js';
 export { VSCodeViewManager } from './VSCodeViewManager.js';
 export { VSCodeBpmnIntegration } from './VSCodeBpmnIntegration.js';
 
-// 통합 VSCodeLayout 클래스 (VSCodeLayoutNew.js에서 import)
-export { VSCodeLayout } from '../../../VSCodeLayoutNew.js';
+// 통합 VSCodeLayout 클래스 (VSCodeLayout.js에서 import)
+export { VSCodeLayout } from '../../../VSCodeLayout.js';
 
 // 하위 호환성을 위한 기본 export
-export { VSCodeLayout as default } from '../../../VSCodeLayoutNew.js';
+export { VSCodeLayout as default } from '../../../VSCodeLayout.js';

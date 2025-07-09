@@ -6,7 +6,7 @@ import { AuthHandler } from './AuthHandler.js';
  * Supabase 인증 모달의 메인 오케스트레이터 클래스
  * AuthModalCore(UI)와 AuthHandler(인증 로직)를 조합하여 완전한 인증 기능 제공
  */
-export class SupabaseLoginModalNew extends EventEmitter {
+export class SupabaseLoginModal extends EventEmitter {
   constructor() {
     super();
     
@@ -26,7 +26,7 @@ export class SupabaseLoginModalNew extends EventEmitter {
    * 초기화 - 컴포넌트 간 이벤트 연결
    */
   init() {
-    console.log('🔧 SupabaseLoginModalNew initialized');
+    console.log('🔧 SupabaseLoginModal initialized');
     
     // 컴포넌트 간 이벤트 연결
     this.setupComponentIntegration();
@@ -296,7 +296,7 @@ export class SupabaseLoginModalNew extends EventEmitter {
    * 완전한 정리
    */
   destroy() {
-    console.log('🗑️ Destroying SupabaseLoginModalNew...');
+    console.log('🗑️ Destroying SupabaseLoginModal...');
     
     // 모달 숨기기
     this.hide();
@@ -313,36 +313,36 @@ export class SupabaseLoginModalNew extends EventEmitter {
     // 이벤트 에미터 정리
     this.removeAllListeners();
     
-    console.log('✅ SupabaseLoginModalNew destroyed');
+    console.log('✅ SupabaseLoginModal destroyed');
   }
 }
 
 // 전역 인스턴스
-let globalSupabaseLoginModalNew = null;
+let globalSupabaseLoginModal = null;
 
 /**
- * 새로운 Supabase 로그인 모달 표시
+ * Supabase 로그인 모달 표시
  */
-export function showSupabaseLoginModalNew(mode = 'login', callback) {
+export function showSupabaseLoginModal(mode = 'login', callback) {
   // 기존 모달이 표시 중이면 무시
-  if (globalSupabaseLoginModalNew && globalSupabaseLoginModalNew.isVisible) {
+  if (globalSupabaseLoginModal && globalSupabaseLoginModal.isVisible) {
     console.log('Modal already visible, ignoring request');
     return;
   }
   
-  if (!globalSupabaseLoginModalNew) {
-    globalSupabaseLoginModalNew = new SupabaseLoginModalNew();
+  if (!globalSupabaseLoginModal) {
+    globalSupabaseLoginModal = new SupabaseLoginModal();
   }
   
-  globalSupabaseLoginModalNew.show(mode, callback);
+  globalSupabaseLoginModal.show(mode, callback);
 }
 
 /**
- * 새로운 Supabase 로그인 모달 숨기기
+ * Supabase 로그인 모달 숨기기
  */
-export function hideSupabaseLoginModalNew() {
-  if (globalSupabaseLoginModalNew) {
-    globalSupabaseLoginModalNew.hide();
+export function hideSupabaseLoginModal() {
+  if (globalSupabaseLoginModal) {
+    globalSupabaseLoginModal.hide();
   }
 }
 
@@ -350,13 +350,16 @@ export function hideSupabaseLoginModalNew() {
  * 전역 인스턴스 가져오기
  */
 export function getSupabaseLoginModalInstance() {
-  return globalSupabaseLoginModalNew;
+  return globalSupabaseLoginModal;
 }
+
+// 기본 export
+export default SupabaseLoginModal;
 
 // 개발자 도구용 전역 함수
 window.debugAuthModal = () => {
-  if (globalSupabaseLoginModalNew) {
-    const debugInfo = globalSupabaseLoginModalNew.getDebugInfo();
+  if (globalSupabaseLoginModal) {
+    const debugInfo = globalSupabaseLoginModal.getDebugInfo();
     console.log('=== AUTH MODAL DEBUG INFO ===');
     console.log('Modal State:', debugInfo.modal);
     console.log('Core State:', debugInfo.core);

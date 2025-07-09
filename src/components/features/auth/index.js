@@ -5,7 +5,7 @@
 
 export { AuthHandler } from './AuthHandler.js';
 export { AuthModalCore } from './AuthModalCore.js';
-export { default as SupabaseLoginModalNew } from './SupabaseLoginModalNew.js';
+export { default as SupabaseLoginModal } from './SupabaseLoginModal.js';
 
 // 하위 호환성을 위한 기본 export
-export { default } from './SupabaseLoginModalNew.js';
+export { default } from './SupabaseLoginModal.js';

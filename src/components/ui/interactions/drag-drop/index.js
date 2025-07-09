@@ -5,7 +5,7 @@
 
 export { DragDropCore } from './DragDropCore.js';
 export { DragDropEventHandler } from './DragDropEventHandler.js';
-export { DragDropController, DraggableTreeItem } from './DragDropControllerNew.js';
+export { DragDropController, DraggableTreeItem } from './DragDropController.js';
 
 // 하위 호환성을 위한 기본 export
-export { DragDropController as default } from './DragDropControllerNew.js';
+export { DragDropController as default } from './DragDropController.js';

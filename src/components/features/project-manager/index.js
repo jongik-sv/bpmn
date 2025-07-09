@@ -4,7 +4,7 @@
  */
 
 export { ProjectManagerCore } from './ProjectManagerCore.js';
-export { ProjectManager } from './ProjectManagerNew.js';
+export { ProjectManager } from './ProjectManager.js';
 
 // 하위 호환성을 위한 기본 export
-export { ProjectManager as default } from './ProjectManagerNew.js';
+export { ProjectManager as default } from './ProjectManager.js';

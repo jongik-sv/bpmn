@@ -8,7 +8,7 @@ import { FolderRepository } from './FolderRepository.js';
  * 데이터베이스 관리 메인 오케스트레이터 클래스
  * 4개의 전문화된 저장소를 조합하여 기존 DatabaseManager와 동일한 기능 제공
  */
-export class DatabaseManagerNew extends EventEmitter {
+export class DatabaseManager extends EventEmitter {
   constructor() {
     super();
     
@@ -25,7 +25,7 @@ export class DatabaseManagerNew extends EventEmitter {
    * 초기화
    */
   init() {
-    console.log('🔧 DatabaseManagerNew initialized');
+    console.log('🔧 DatabaseManager initialized');
     
     // 레포지토리 간 이벤트 연결 설정
     this.setupRepositoryIntegration();
@@ -552,7 +552,7 @@ export class DatabaseManagerNew extends EventEmitter {
    * 리소스 정리
    */
   destroy() {
-    console.log('🗑️ Destroying DatabaseManagerNew...');
+    console.log('🗑️ Destroying DatabaseManager...');
     
     // 저장소들 정리
     this.connectionManager?.destroy();
@@ -563,55 +563,55 @@ export class DatabaseManagerNew extends EventEmitter {
     // 이벤트 에미터 정리
     this.removeAllListeners();
     
-    console.log('✅ DatabaseManagerNew destroyed');
+    console.log('✅ DatabaseManager destroyed');
   }
 }
 
 // 싱글톤 인스턴스
-export const dbManagerNew = new DatabaseManagerNew();
+export const dbManager = new DatabaseManager();
 
 // 편의 함수들 (기존 호환성)
-export const testDatabaseConnection = () => dbManagerNew.testConnection();
-export const createProject = (projectData) => dbManagerNew.createProject(projectData);
-export const getUserProjects = (userId) => dbManagerNew.getUserProjects(userId);
-export const createDiagram = (diagramData) => dbManagerNew.createDiagram(diagramData);
-export const updateDiagram = (diagramId, updates) => dbManagerNew.updateDiagram(diagramId, updates);
-export const getDiagram = (diagramId) => dbManagerNew.getDiagram(diagramId);
-export const getProjectDiagrams = (projectId) => dbManagerNew.getProjectDiagrams(projectId);
-export const createFolder = (folderData) => dbManagerNew.createFolder(folderData);
-export const getProjectFolders = (projectId) => dbManagerNew.getProjectFolders(projectId);
-export const deleteFolder = (folderId) => dbManagerNew.deleteFolder(folderId);
-export const renameFolder = (folderId, newName) => dbManagerNew.renameFolder(folderId, newName);
-export const updateFolder = (folderId, updates) => dbManagerNew.updateFolder(folderId, updates);
-export const deleteDiagram = (diagramId) => dbManagerNew.deleteDiagram(diagramId);
-export const updateItemOrder = (items) => dbManagerNew.updateItemOrder(items);
+export const testDatabaseConnection = () => dbManager.testConnection();
+export const createProject = (projectData) => dbManager.createProject(projectData);
+export const getUserProjects = (userId) => dbManager.getUserProjects(userId);
+export const createDiagram = (diagramData) => dbManager.createDiagram(diagramData);
+export const updateDiagram = (diagramId, updates) => dbManager.updateDiagram(diagramId, updates);
+export const getDiagram = (diagramId) => dbManager.getDiagram(diagramId);
+export const getProjectDiagrams = (projectId) => dbManager.getProjectDiagrams(projectId);
+export const createFolder = (folderData) => dbManager.createFolder(folderData);
+export const getProjectFolders = (projectId) => dbManager.getProjectFolders(projectId);
+export const deleteFolder = (folderId) => dbManager.deleteFolder(folderId);
+export const renameFolder = (folderId, newName) => dbManager.renameFolder(folderId, newName);
+export const updateFolder = (folderId, updates) => dbManager.updateFolder(folderId, updates);
+export const deleteDiagram = (diagramId) => dbManager.deleteDiagram(diagramId);
+export const updateItemOrder = (items) => dbManager.updateItemOrder(items);
 
 // 개발자 도구용 전역 함수들 (기존 호환성)
 window.enableLocalMode = () => {
-  dbManagerNew.enableLocalMode();
+  dbManager.enableLocalMode();
   console.log('🔧 Local mode enabled. Please refresh the page.');
   location.reload();
 };
 
 window.disableLocalMode = () => {
-  dbManagerNew.enableDatabaseMode();
+  dbManager.enableDatabaseMode();
   console.log('🌐 Database mode enabled. Please refresh the page.');
   location.reload();
 };
 
 window.switchToDatabaseMode = () => {
-  const status = dbManagerNew.switchToDatabaseModeImmediate();
+  const status = dbManager.switchToDatabaseModeImmediate();
   console.log('🌐 Switched to database mode immediately');
   console.log('🔧 Current status:', status);
 };
 
 window.clearLocalData = () => {
-  dbManagerNew.clearLocalData();
+  dbManager.clearLocalData();
   console.log('🧹 Local data cleared.');
 };
 
 window.checkDatabaseStatus = () => {
-  const status = dbManagerNew.getFullStatus();
+  const status = dbManager.getFullStatus();
   console.log('=== DATABASE STATUS ===');
   console.log('Mode:', status.mode);
   console.log('Connection:', status.connection);

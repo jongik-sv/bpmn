@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { getCurrentUser, onAuthStateChange, signOut } from '../../lib/supabase.js';
-import { showSupabaseLoginModalNew } from '../../components/auth/SupabaseLoginModalNew.js';
+import { showSupabaseLoginModal } from '../../components/features/auth/SupabaseLoginModal.js';
 import $ from 'jquery';
 
 /**
@@ -167,7 +167,7 @@ export class AuthStateManager extends EventEmitter {
    */
   showLoginModal(mode = 'login') {
     try {
-      showSupabaseLoginModalNew(mode, (user) => {
+      showSupabaseLoginModal(mode, (user) => {
         console.log('Login successful:', user);
         // 인증 상태 변경은 onAuthStateChange에서 처리됨
         this.emit('loginSuccess', user);
