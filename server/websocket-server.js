@@ -60,6 +60,46 @@ const documents = new Map() // roomId -> Y.Doc
 const documentMetadata = new Map() // roomId -> { diagramId, name, lastSaved, saveInProgress, lastChanged, forceSaveTimeout, connections, heartbeatInterval }
 const saveQueue = new Map() // roomId -> save function
 const documentRequests = new Map() // diagramId -> {xml, name} 문서 요청 캐시
+const roomCreationPromises = new Map(); // roomId -> Promise<void>, 경합 조건 방지용
+
+/**
+ * Race condition을 방지하며 Y.Doc을 가져오거나 생성하는 함수
+ */
+async function getOrCreateDoc(roomId, diagramId) {
+  if (documents.has(roomId)) {
+    return documents.get(roomId);
+  }
+
+  if (roomCreationPromises.has(roomId)) {
+    // 다른 요청에 의해 룸이 이미 생성 중이면, 해당 작업이 끝나기를 기다림
+    await roomCreationPromises.get(roomId);
+    return documents.get(roomId);
+  }
+
+  // 이 요청이 룸 생성을 시작함
+  const creationPromise = new Promise(async (resolve, reject) => {
+    try {
+      console.log(`[RaceGuard] 룸 생성 시작: ${roomId}`);
+      const ydoc = new Y.Doc();
+      // 맵에 ydoc을 먼저 추가하여, 후속 요청이 위의 roomCreationPromises.has()에 걸리도록 함
+      documents.set(roomId, ydoc); 
+      await setupDocumentPersistence(roomId, ydoc, diagramId);
+      resolve(ydoc);
+    } catch (error) {
+      console.error(`[RaceGuard] 룸 생성 실패: ${roomId}`, error);
+      // 실패 시에는 ydoc을 다시 제거하여 다른 요청이 재시도할 수 있도록 함
+      documents.delete(roomId);
+      reject(error);
+    } finally {
+      // 성공/실패 여부와 관계없이 완료되면 Promise를 제거
+      roomCreationPromises.delete(roomId);
+      console.log(`[RaceGuard] 룸 생성 완료: ${roomId}`);
+    }
+  });
+
+  roomCreationPromises.set(roomId, creationPromise);
+  return await creationPromise;
+}
 
 /**
  * 새로운 저장 전략 구현 (30초 debounce, 1분 강제 저장)
@@ -291,25 +331,8 @@ const server = http.createServer(async (request, response) => {
     try {
       // console.log(`📄 문서 요청: ${diagramId}`) // Disabled: too verbose
       
-      // 룸 ID 생성 (문서 ID를 룸 ID로 사용)
       const roomId = diagramId
-      
-      let ydoc = documents.get(roomId)
-      let documentInfo = null
-      
-      if (!ydoc) {
-        // 룸이 없으면 생성
-        ydoc = new Y.Doc()
-        documents.set(roomId, ydoc)
-        
-        console.log(`🏠 룸 생성: ${roomId}`)
-        
-        // 문서를 DB에서 로드하고 룸에 저장
-        documentInfo = await setupDocumentPersistence(roomId, ydoc, diagramId)
-        
-        const displayName = getDocumentDisplayName(roomId)
-        // console.log(`📁 룸에 문서 저장: ${displayName}`) // Disabled: too verbose
-      }
+      const ydoc = await getOrCreateDoc(roomId, diagramId);
       
       // 룸에 있는 문서를 UI에게 보냄
       const bpmnMap = ydoc.getMap('bpmn-diagram')
@@ -388,6 +411,7 @@ wss.on('connection', async (conn, req) => {
   
   // URL에서 diagram ID 파싱 (룸 ID는 문서 ID와 동일하게 사용)
   const url = new URL(req.url, `http://${req.headers.host}`)
+  console.log('📤 url을 받았다.', url)
   let diagramId = url.searchParams.get('diagramId')
   
   // diagramId가 복잡한 경로 형태인 경우 실제 ID만 추출
@@ -408,33 +432,12 @@ wss.on('connection', async (conn, req) => {
   // console.log(`🔗 연결 정보: 룸ID=${roomId}, 다이어그램ID=${diagramId}`) // Disabled: too verbose
   
   if (!diagramId) {
-    console.warn('⚠️ 다이어그램 ID가 없어 연결을 거부합니다.')
+    console.warn('⚠️ 다이어그램 ID가 없어 연결을 거부합니다.', url)
     conn.close(1000, '다이어그램 ID가 필요합니다.')
     return
   }
   
-  // 기존 Y.Doc이 있는지 확인하거나 새로 생성
-  let ydoc = documents.get(roomId)
-  let isNewRoom = false
-  let documentInfo = null
-  
-  if (!ydoc) {
-    // 새 룸 생성
-    ydoc = new Y.Doc()
-    documents.set(roomId, ydoc)
-    isNewRoom = true
-    
-    // 문서 저장 설정 및 DB에서 로드
-    documentInfo = await setupDocumentPersistence(roomId, ydoc, diagramId)
-    // DB에서 로드된 실제 문서명 표시
-    const displayName = getDocumentDisplayName(roomId)
-    // console.log(`👤 사용자가 문서에 접속: ${displayName}`) // Disabled: too verbose
-    console.log(`🏠 룸 생성: 룸ID=${roomId}, 문서명=${displayName}`)
-  } else {
-    // 기존 룸 - 실제 문서명 출력
-    const displayName = getDocumentDisplayName(roomId)
-    // console.log(`👤 사용자가 문서에 입장: ${displayName}`) // Disabled: too verbose
-  }
+  await getOrCreateDoc(roomId, diagramId);
   
   // 연결 수 증가
   const metadata = documentMetadata.get(roomId)
@@ -447,14 +450,7 @@ wss.on('connection', async (conn, req) => {
   // Yjs WebSocket 연결 설정
   setupWSConnection(conn, req, { docName: roomId, gc: true })
   
-  // 새 룸이고 DB에서 문서를 로드했다면 클라이언트에게 즉시 동기화
-  if (isNewRoom && documentInfo && documentInfo.hasExistingData) {
-    // 짧은 지연 후 동기화 (클라이언트 연결 완료 대기)
-    setTimeout(() => {
-      const displayName = getDocumentDisplayName(roomId)
-      // console.log(`📤 문서 내용 즉시 동기화: ${displayName}`) // Disabled: too verbose
-    }, 100)
-  }
+  
   
   conn.on('close', async () => {
     const displayName = getDocumentDisplayName(roomId)

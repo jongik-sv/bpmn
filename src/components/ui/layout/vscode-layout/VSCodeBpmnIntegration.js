@@ -138,9 +138,6 @@ export class VSCodeBpmnIntegration extends EventEmitter {
       if (!appManager.bpmnEditor || !appManager.bpmnEditor.isInitialized) {
         console.log('🔧 BPMN Editor not initialized, initializing...');
         await appManager.initializeBpmnEditor();
-        if (appManager.bpmnEditor) {
-          await this.integrateBPMNEditor(appManager.bpmnEditor);
-        }
       }
 
       // 에디터 컨텐츠 준비
@@ -164,6 +161,11 @@ export class VSCodeBpmnIntegration extends EventEmitter {
       if (this.layoutManager) {
         this.layoutManager.showBPMNEditor();
         console.log('📄 BPMN editor displayed, welcome message hidden');
+      }
+
+      // 협업 세션 설정
+      if (appManager.bpmnEditor?.collaborationHandler) {
+        await appManager.bpmnEditor.collaborationHandler.setupCollaborationForDiagram(diagram);
       }
       
       this.emit('diagramOpened', diagram);

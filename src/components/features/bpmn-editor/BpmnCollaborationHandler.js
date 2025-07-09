@@ -20,32 +20,9 @@ export class BpmnCollaborationHandler extends EventEmitter {
   }
 
   setupEditorEventListeners() {
-    // 에디터 다이어그램 변경 시 협업 동기화
+    // 다이어그램 변경 시 협업 동기화
     this.editorCore.on('diagramChanged', () => {
       this.syncToCollaborationServer();
-    });
-    
-    // 다이어그램 로드 시 협업 룸 업데이트
-    this.editorCore.on('diagramLoaded', async (diagram) => {
-      this.currentDiagram = diagram;
-      
-      // 협업이 아직 초기화되지 않았고 사용자가 있다면 초기화
-      if (!this.collaborationModule && this.currentUser && this.currentProject) {
-        try {
-          await this.initializeCollaboration(this.currentUser);
-        } catch (error) {
-          console.warn('⚠️ 다이어그램 로드 후 협업 초기화 실패, 에디터는 계속 작동합니다:', error);
-          this.emit('collaborationError', error);
-        }
-      } else if (this.collaborationModule) {
-        // 이미 초기화되어 있다면 룸만 업데이트
-        try {
-          await this.updateCollaborationRoom();
-        } catch (error) {
-          console.warn('⚠️ 다이어그램 로드 후 협업 룸 업데이트 실패, 에디터는 계속 작동합니다:', error);
-          this.emit('collaborationError', error);
-        }
-      }
     });
   }
 
@@ -68,16 +45,6 @@ export class BpmnCollaborationHandler extends EventEmitter {
    */
   async setProject(project) {
     this.currentProject = project;
-    
-    // 협업 룸 ID 업데이트 (문서별 고유 룸)
-    if (this.collaborationModule && project && this.currentDiagram) {
-      try {
-        await this.updateCollaborationRoom();
-      } catch (error) {
-        console.warn('⚠️ setProject에서 협업 룸 업데이트 실패, 에디터는 계속 작동합니다:', error);
-      }
-    }
-    
     this.emit('projectChanged', project);
   }
 
@@ -200,12 +167,20 @@ export class BpmnCollaborationHandler extends EventEmitter {
   }
 
   /**
-   * 협업 룸 업데이트 (다이어그램 변경 시)
+   * 특정 다이어그램에 대한 협업을 설정합니다.
+   * 이 함수는 다이어그램이 완전히 로드된 후 명시적으로 호출되어야 합니다.
    */
-  async updateCollaborationRoom() {
+  async setupCollaborationForDiagram(diagram) {
+    this.currentDiagram = diagram;
+
     if (this.collaborationModule && this.currentProject && this.currentDiagram) {
       const roomId = this.currentDiagram.id || this.currentDiagram.diagramId;
-      
+
+      // 이미 올바른 룸에 있는지 확인하여 중복 호출 방지
+      if (this.collaborationModule.isInitialized && collaborationManager.currentRoomId === roomId) {
+        return; // 이미 올바른 룸이므로 변경하지 않음
+      }
+
       try {
         const userInfo = this.getUserInfo();
         

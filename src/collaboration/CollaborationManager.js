@@ -45,18 +45,22 @@ export class CollaborationManager {
         // Yjs 문서 생성
         this.ydoc = new Y.Doc();
         
-        // WebSocket URL 구성 (diagramId를 URL 파라미터로 전달)
-        const wsUrl = diagramId ? 
-          `${websocketUrl}?diagramId=${encodeURIComponent(diagramId)}` : 
-          websocketUrl;
-        
-        // console.log(`🔗 WebSocket 연결 정보: URL=${wsUrl}, 룸ID=${roomId}`); // Disabled: too verbose
-        
-        // WebSocket 프로바이더 생성 (타임아웃 추가)
-        this.provider = new WebsocketProvider(wsUrl, roomId, this.ydoc, {
+        // WebSocket URL 및 파라미터 구성
+        const params = {};
+        if (diagramId) {
+          params.diagramId = diagramId;
+        }
+
+        // WebSocket 프로바이더 생성 (타임아웃 및 파라미터 추가)
+        this.provider = new WebsocketProvider(websocketUrl, roomId, this.ydoc, {
           maxBackoffTime: 10000, // 최대 재연결 대기 시간
-          maxRetries: 3 // 최대 재연결 시도 횟수
+          maxRetries: 3, // 최대 재연결 시도 횟수
+          params: params
         });
+
+        // --- DEBUG LOG ---
+        console.log('DEBUG: Attempting to connect to WebSocket URL:', this.provider.url);
+        // -----------------
         
         // Awareness 설정 (사용자 상태 및 커서 정보)
         this.awareness = this.provider.awareness;
@@ -94,7 +98,7 @@ export class CollaborationManager {
             message: error?.message,
             code: error?.code,
             type: error?.type,
-            url: wsUrl,
+            url: this.websocketUrl, // wsUrl -> this.websocketUrl
             roomId: roomId
           });
           this.handleConnectionFailure();
@@ -325,10 +329,11 @@ export class CollaborationManager {
       // 새 Y.Doc 생성
       const newYdoc = new Y.Doc();
       
-      // 새 WebSocket URL 구성
-      const wsUrl = diagramId ? 
-        `${this.websocketUrl}?diagramId=${encodeURIComponent(diagramId)}` : 
-        this.websocketUrl;
+      // 새 WebSocket 파라미터 구성
+      const params = {};
+      if (diagramId) {
+        params.diagramId = diagramId;
+      }
 
       // 기존 연결 해제
       if (this.provider) {
@@ -339,10 +344,15 @@ export class CollaborationManager {
       this.ydoc = newYdoc;
       this.currentRoomId = newRoomId;
       
-      this.provider = new WebsocketProvider(wsUrl, newRoomId, this.ydoc, {
+      this.provider = new WebsocketProvider(this.websocketUrl, newRoomId, this.ydoc, {
         maxBackoffTime: 10000,
-        maxRetries: 3
+        maxRetries: 3,
+        params: params
       });
+
+      // --- DEBUG LOG ---
+      console.log('DEBUG: Attempting to connect to new WebSocket URL:', this.provider.url);
+      // -----------------
 
       this.awareness = this.provider.awareness;
       

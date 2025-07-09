@@ -257,8 +257,8 @@ export class BpmnEditorCore extends EventEmitter {
       let shouldImport = true;
       
       try {
-        // 현재 모델러의 XML을 가져와서 비교 (모델러가 null이 아닌지 다시 확인)
-        if (this.modeler) {
+        // 모델러에 이미 다이어그램이 로드되어 있는지 확인
+        if (this.modeler && this.modeler.getDefinitions()) {
           const currentResult = await this.modeler.saveXML({ format: true });
           const currentXml = currentResult.xml;
           
@@ -269,8 +269,8 @@ export class BpmnEditorCore extends EventEmitter {
           }
         }
       } catch (error) {
-        // 현재 XML 비교 실패, 서버 XML 적용
-        console.warn('XML comparison failed:', error);
+        // XML 비교 실패, 서버 XML 적용
+        console.warn('XML comparison failed, proceeding with import:', error);
       }
       
       // 다른 경우만 서버 XML 적용 (모델러가 null이 아닌지 확인)

@@ -83,6 +83,7 @@ export class BpmnCollaborationModule {
       
       this.isInitialized = true;
       this.collaborationEnabled = collaborationEnabled;
+      this.diagramId = options.diagramId; // 다이어그램 ID 저장
       
       if (collaborationEnabled) {
         // console.log('💾 Database persistence handled by WebSocket server'); // Disabled: too verbose
@@ -346,7 +347,7 @@ export class BpmnCollaborationModule {
               if (window.appManager && window.appManager.bpmnEditor) {
                 // 현재 다이어그램 데이터 구성
                 const diagramData = {
-                  id: this.getCurrentDiagramId(),
+                  id: this.diagramId, // 저장된 diagramId 사용
                   content: remoteXml,
                   bpmn_xml: remoteXml
                 };
