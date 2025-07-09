@@ -43,7 +43,6 @@ export class BpmnEditorCore extends EventEmitter {
       
       await this.setupContainer();
       this.initializeModeler();
-      this.setupFileDrop();
       this.isInitialized = true;
       
       this.emit('initialized');
@@ -413,58 +412,7 @@ export class BpmnEditorCore extends EventEmitter {
     }
   }
 
-  /**
-   * 파일 드래그 앤 드롭 설정
-   */
-  setupFileDrop() {
-    // Check file API availability
-    if (!window.FileList || !window.FileReader) {
-      window.alert(
-        '이 브라우저는 드래그 앤 드롭을 지원하지 않습니다. ' +
-        'Chrome, Firefox 또는 Internet Explorer 10 이상을 사용해주세요.'
-      );
-      return;
-    }
-
-    this.registerFileDrop(this.container, (xml) => {
-      this.openDiagram({
-        id: 'imported',
-        name: '가져온 다이어그램',
-        content: xml
-      });
-    });
-  }
-
-  /**
-   * 파일 드롭 핸들러 등록
-   */
-  registerFileDrop(container, callback) {
-    const handleFileSelect = (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-
-      const files = e.dataTransfer.files;
-      const file = files[0];
-
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const xml = e.target.result;
-        callback(xml);
-      };
-      reader.readAsText(file);
-    };
-
-    const handleDragOver = (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
-    };
-
-    container.get(0).addEventListener('dragover', handleDragOver, false);
-    container.get(0).addEventListener('drop', handleFileSelect, false);
-  }
+  // 파일 드래그앤드롭 기능은 온라인 전용으로 제거됨
 
   /**
    * 내보내기 업데이트 (디바운스)

@@ -399,6 +399,74 @@ class TreeDataProvider {
         this.onDidChangeTreeData = callback;
     }
 
+    /**
+     * 프로젝트 데이터를 트리 구조로 변환하여 설정
+     */
+    setProjectData(projectData) {
+        if (!projectData) {
+            console.warn('No project data provided to TreeDataProvider');
+            return;
+        }
+
+        console.log('🔧 Setting project data in TreeDataProvider:', projectData.name);
+        
+        // 루트 노드 생성 (프로젝트명)
+        const root = new FileTreeItem(projectData.name, 'folder', TreeItemCollapsibleState.Expanded);
+        root.projectId = projectData.id;
+        
+        // 폴더와 다이어그램 데이터 가져오기
+        const folders = projectData.folders || [];
+        const diagrams = projectData.diagrams || [];
+        
+        // 폴더를 계층 구조로 정리
+        const folderMap = new Map();
+        folderMap.set(null, root); // null parent_id는 루트 노드
+        
+        // 모든 폴더를 먼저 생성 (부모 관계 무시하고)
+        folders.forEach(folder => {
+            const folderItem = new FileTreeItem(folder.name, 'folder', TreeItemCollapsibleState.Collapsed);
+            folderItem.folderId = folder.id;
+            folderItem.parentFolderId = folder.parent_id;
+            folderItem.description = folder.description;
+            folderItem.created_at = folder.created_at;
+            folderItem.updated_at = folder.updated_at;
+            folderMap.set(folder.id, folderItem);
+        });
+        
+        // 폴더 계층 구조 설정
+        folders.forEach(folder => {
+            const folderItem = folderMap.get(folder.id);
+            const parentItem = folderMap.get(folder.parent_id);
+            
+            if (parentItem && folderItem) {
+                parentItem.addChild(folderItem);
+            }
+        });
+        
+        // 다이어그램을 해당 폴더에 추가
+        diagrams.forEach(diagram => {
+            const diagramItem = new FileTreeItem(diagram.name, 'file', TreeItemCollapsibleState.None);
+            diagramItem.diagramId = diagram.id;
+            diagramItem.folderId = diagram.folder_id;
+            diagramItem.extension = 'bpmn';
+            diagramItem.iconPath = '📋';
+            diagramItem.description = diagram.description;
+            diagramItem.created_at = diagram.created_at;
+            diagramItem.updated_at = diagram.updated_at;
+            diagramItem.size = diagram.bpmn_xml ? diagram.bpmn_xml.length : 0;
+            diagramItem.diagramData = diagram; // 전체 다이어그램 데이터 저장
+            
+            // 해당 폴더에 추가 (folder_id가 null이면 루트에 추가)
+            const parentFolder = folderMap.get(diagram.folder_id);
+            if (parentFolder) {
+                parentFolder.addChild(diagramItem);
+            }
+        });
+        
+        this.setRoot(root);
+        console.log('✅ Project data converted to tree structure');
+    }
+
     // 통계 정보
     getStatistics() {
         if (!this.root) {

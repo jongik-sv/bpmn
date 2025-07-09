@@ -250,48 +250,7 @@ export class BpmnUIIntegration extends EventEmitter {
     this.updateRecentFilesList();
   }
 
-  /**
-   * 파일 열기 대화상자 표시
-   */
-  showFileOpenDialog() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.bpmn,.xml';
-    input.style.display = 'none';
-    
-    input.addEventListener('change', (event) => {
-      const file = event.target.files[0];
-      if (file) {
-        this.loadFileFromInput(file);
-      }
-      document.body.removeChild(input);
-    });
-    
-    document.body.appendChild(input);
-    input.click();
-  }
-
-  /**
-   * 입력에서 파일 로드
-   */
-  loadFileFromInput(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const xml = e.target.result;
-      if (this.editorCore.isValidBpmnXml(xml)) {
-        this.emit('fileLoadRequested', {
-          id: 'imported',
-          name: file.name.replace(/\.[^/.]+$/, ''), // 확장자 제거
-          content: xml
-        });
-      } else {
-        if (window.appManager) {
-          window.appManager.showNotification('유효하지 않은 BPMN 파일입니다.', 'error');
-        }
-      }
-    };
-    reader.readAsText(file);
-  }
+  // 파일 열기 기능은 온라인 전용으로 제거됨 (서버에서 로드)
 
   /**
    * 최근 파일 목록 업데이트

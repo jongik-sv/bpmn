@@ -162,6 +162,9 @@ export class AppManager {
     // 프로젝트 이름 표시
     $('#current-project-name').text(project.name);
     
+    // 먼저 프로젝트 데이터 로드
+    await this.loadProjectData();
+    
     // VS Code 스타일 레이아웃 초기화
     await this.initializeVSCodeLayout();
     
@@ -176,11 +179,19 @@ export class AppManager {
       }
     }
     
-    // 파일 트리 로드 (VS Code Layout에서 실제 데이터 사용)
+    // VS Code Layout에 프로젝트 데이터 적용
     if (this.vscodeLayout) {
-      // 먼저 프로젝트 데이터를 로드한 다음 VS Code Layout에 반영
-      await this.loadProjectData();
       await this.vscodeLayout.setupBPMNIntegration();
+      
+      // Explorer에 데이터 설정
+      if (this.vscodeLayout.explorer && this.vscodeLayout.explorer.explorerCore) {
+        const explorerCore = this.vscodeLayout.explorer.explorerCore;
+        if (explorerCore.dataProvider && explorerCore.dataProvider.setProjectData) {
+          console.log('🔧 Setting project data to Explorer');
+          explorerCore.dataProvider.setProjectData(this.currentProject);
+          explorerCore.refreshTree();
+        }
+      }
     } else {
       // 폴백: 기존 파일 트리 로드
       this.loadFileTree();
